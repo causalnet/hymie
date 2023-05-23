@@ -109,14 +109,18 @@ public class HymieAgent
     throws CannotCompileException
     {
         m.insertAfter("""
-            byte[] b = $1;
-            int offset = $2;
-            int length = $3;
-            int n = $_;
             
-            if (n > 0)
+            if ($0.port == 80 || $0.port == 8080)
             {
-                java.lang.System.err.println("received(" + $0.port + "): " + new String(b, offset, n));
+                byte[] b = $1;
+                int offset = $2;
+                int length = $3;
+                int n = $_;
+                
+                if (n > 0)
+                {
+                    System.err.println("received(" + $0.port + "): " + new String(b, offset, n));
+                }
             }
         """);
     }
@@ -125,14 +129,17 @@ public class HymieAgent
     throws CannotCompileException
     {
         m.insertAfter("""
-            byte[] b = $1;
-            int offset = $2;
-            int length = $3;
-            int n = $_;
-            
-            if (n > 0)
+            if (this$0.getPort() == 443 || this$0.getPort() == 8443)
             {
-                java.lang.System.err.println("SSLreceived(" + this$0.getPort() + "): " + new String(b, offset, n));
+                byte[] b = $1;
+                int offset = $2;
+                int length = $3;
+                int n = $_;
+                
+                if (n > 0)
+                {
+                    System.err.println("SSLreceived(" + this$0.getPort() + "): " + new String(b, offset, n));
+                }
             }
         """);
     }
@@ -141,10 +148,13 @@ public class HymieAgent
     throws CannotCompileException
     {
         m.insertAfter("""
-            byte[] b = $1;
-            int offset = $2;
-            int length = $3;
-            java.lang.System.err.println("sent(" + $0.port + "): " + new String(b, offset, length));
+            if ($0.port == 80 || $0.port == 8080)
+            {
+                byte[] b = $1;
+                int offset = $2;
+                int length = $3;
+                System.err.println("sent(" + $0.port + "): " + new String(b, offset, length));
+            }
         """);
     }
 
@@ -152,10 +162,13 @@ public class HymieAgent
     throws CannotCompileException
     {
         m.insertAfter("""
-            byte[] b = $1;
-            int offset = $2;
-            int length = $3;
-            java.lang.System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
+            if (this$0.getPort() == 443 || this$0.getPort() == 8443)
+            {
+                byte[] b = $1;
+                int offset = $2;
+                int length = $3;
+                System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
+            }
         """);
     }
 }
