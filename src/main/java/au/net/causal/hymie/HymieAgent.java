@@ -116,7 +116,7 @@ public class HymieAgent
             
             if (n > 0)
             {
-                java.lang.System.err.println("received: " + new String(b, offset, n));
+                java.lang.System.err.println("received(" + $0.port + "): " + new String(b, offset, n));
             }
         """);
     }
@@ -132,7 +132,7 @@ public class HymieAgent
             
             if (n > 0)
             {
-                java.lang.System.err.println("SSLreceived: " + new String(b, offset, n));
+                java.lang.System.err.println("SSLreceived(" + this$0.getPort() + "): " + new String(b, offset, n));
             }
         """);
     }
@@ -144,7 +144,7 @@ public class HymieAgent
             byte[] b = $1;
             int offset = $2;
             int length = $3;
-            java.lang.System.err.println("sent: " + new String(b, offset, length));
+            java.lang.System.err.println("sent(" + $0.port + "): " + new String(b, offset, length));
         """);
     }
 
@@ -155,7 +155,7 @@ public class HymieAgent
             byte[] b = $1;
             int offset = $2;
             int length = $3;
-            java.lang.System.err.println("SSLsent: " + new String(b, offset, length));
+            java.lang.System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
         """);
     }
 }
