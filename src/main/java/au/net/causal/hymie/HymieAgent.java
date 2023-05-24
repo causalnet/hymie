@@ -2,10 +2,13 @@ package au.net.causal.hymie;
 
 import javassist.CannotCompileException;
 import javassist.ClassPool;
+import javassist.CtBehavior;
 import javassist.CtClass;
 import javassist.CtMethod;
 import javassist.LoaderClassPath;
 import javassist.NotFoundException;
+import javassist.expr.ExprEditor;
+import javassist.expr.FieldAccess;
 
 import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
@@ -81,6 +84,45 @@ public class HymieAgent
                         classfileBuffer = ctClass.toBytecode();
                         ctClass.detach();
                     }
+
+                    else if ("org/springframework/http/client/reactive/ReactorClientHttpConnector".equals(className))
+                    {
+                        ClassPool classPool = new ClassPool(null);
+                        classPool.appendSystemPath();
+                        classPool.appendClassPath(new LoaderClassPath(loader));
+
+                        CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
+
+                        //Don't do this for now since it only works if agent is there at construction
+                        /*
+                        CtConstructor init = Arrays.stream(ctClass.getConstructors()).filter(m -> parameterCount(m) == 1).findFirst().get();
+                        transformReactorClientHttpConnectorConstructor(init);
+                         */
+
+                        //This approach allows agent to attach at any time and it will just work
+                        CtMethod connectMethod = ctClass.getDeclaredMethod("connect");
+                        transformReactorClientHttpConnectorConnectMethod(connectMethod);
+
+                        classfileBuffer = ctClass.toBytecode();
+                        ctClass.detach();
+                    }
+
+                    else if ("io/netty/handler/logging/LoggingHandler".equals(className))
+                    {
+                        ClassPool classPool = new ClassPool(null);
+                        classPool.appendSystemPath();
+                        classPool.appendClassPath(new LoaderClassPath(loader));
+
+                        CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
+
+                        CtMethod readMethod = ctClass.getDeclaredMethod("channelRead");
+                        transformLoggingHandlerReadMethod(readMethod);
+                        CtMethod writeMethod = ctClass.getDeclaredMethod("write");
+                        transformLoggingHandlerWriteMethod(writeMethod);
+
+                        classfileBuffer = ctClass.toBytecode();
+                        ctClass.detach();
+                    }
                 }
                 catch (Throwable e)
                 {
@@ -91,7 +133,7 @@ public class HymieAgent
         });
     }
 
-    private int parameterCount(CtMethod method)
+    private int parameterCount(CtBehavior method)
     {
         try
         {
@@ -169,6 +211,68 @@ public class HymieAgent
                 int length = $3;
                 System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
             }
+        """);
+    }
+
+    /*
+    private void transformReactorClientHttpConnectorConstructor(CtConstructor m)
+    throws CannotCompileException
+    {
+        m.insertBeforeBody("""
+            $1 = (reactor.netty.http.client.HttpClient)($1.wiretap("au.net.causal.hymie", io.netty.handler.logging.LogLevel.TRACE));
+        """);
+    }
+     */
+
+    private void transformReactorClientHttpConnectorConnectMethod(CtMethod m)
+    throws CannotCompileException
+    {
+        m.instrument(new ExprEditor()
+        {
+            @Override
+            public void edit(FieldAccess f) throws CannotCompileException
+            {
+                if ("httpClient".equals(f.getFieldName()))
+                {
+                    f.replace("""
+                        $_ = (reactor.netty.http.client.HttpClient)($0.httpClient.wiretap("au.net.causal.hymie", io.netty.handler.logging.LogLevel.TRACE));
+                    """);
+                }
+            }
+        });
+    }
+
+    private void transformLoggingHandlerReadMethod(CtMethod m)
+    throws CannotCompileException
+    {
+        m.insertBefore("""
+                java.net.InetSocketAddress address = (java.net.InetSocketAddress)$1.channel().remoteAddress();
+                if (address.getPort() == 443 || address.getPort() == 8443 || address.getPort() == 80 || address.getPort() == 8080)
+                {
+                    if (msg instanceof io.netty.buffer.ByteBuf)
+                    {
+                       io.netty.buffer.ByteBuf buf = (io.netty.buffer.ByteBuf)$2;
+                       String s = buf.toString(java.nio.charset.StandardCharsets.UTF_8);
+                       System.err.println("nettyReceived(" + address.getPort() + "): " + s);
+                    }
+                }
+        """);
+    }
+
+    private void transformLoggingHandlerWriteMethod(CtMethod m)
+    throws CannotCompileException
+    {
+        m.insertBefore("""
+                java.net.InetSocketAddress address = (java.net.InetSocketAddress)$1.channel().remoteAddress();
+                if (address.getPort() == 443 || address.getPort() == 8443 || address.getPort() == 80 || address.getPort() == 8080)
+                {
+                    if (msg instanceof io.netty.buffer.ByteBuf)
+                    {
+                       io.netty.buffer.ByteBuf buf = (io.netty.buffer.ByteBuf)$2;
+                       String s = buf.toString(java.nio.charset.StandardCharsets.UTF_8);
+                       System.err.println("nettySent(" + address.getPort() + "): " + s);
+                    }
+                }
         """);
     }
 }
