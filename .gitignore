@@ -3,3 +3,4 @@
 /agent/target
 /agent/dependency-reduced-pom.xml
 /agent/hymie-agent.iml
+/integration-tests/target
