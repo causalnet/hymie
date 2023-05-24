@@ -1,3 +1,5 @@
 /target
-/dependency-reduced-pom.xml
 /.idea
+/agent/target
+/agent/dependency-reduced-pom.xml
+/agent/hymie-agent.iml
