@@ -19,6 +19,8 @@ import java.util.Arrays;
 
 public class HymieAgent
 {
+    private final TrafficRecorder trafficRecorder = new TrafficRecorder();
+
     public static void premain(String agentArgs, Instrumentation inst)
     {
         System.out.println("Hello from Hymie agent");
@@ -29,6 +31,10 @@ public class HymieAgent
 
     public void run(Instrumentation inst)
     {
+        //Install our hacks into system properties
+        trafficRecorder.register();
+
+        //Add transformers
         inst.addTransformer(new ClassFileTransformer()
         {
             @Override
@@ -161,7 +167,11 @@ public class HymieAgent
                 
                 if (n > 0)
                 {
-                    System.err.println("received(" + $0.port + "): " + new String(b, offset, n));
+                    java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                    Object[] key = new Object[] {$0, "READ"};
+                    c.accept(key, new java.net.InetSocketAddress($0.address, $0.port));
+                    c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + n));
+                    //System.err.println("received(" + $0.port + "): " + new String(b, offset, n));
                 }
             }
         """);
@@ -180,7 +190,11 @@ public class HymieAgent
                 
                 if (n > 0)
                 {
-                    System.err.println("SSLreceived(" + this$0.getPort() + "): " + new String(b, offset, n));
+                    //System.err.println("SSLreceived(" + this$0.getPort() + "): " + new String(b, offset, n));
+                    java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                    Object[] key = new Object[] {this$0, "READ"};
+                    c.accept(key, new java.net.InetSocketAddress(this$0.getInetAddress(), this$0.getPort()));
+                    c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + n));
                 }
             }
         """);
@@ -195,7 +209,11 @@ public class HymieAgent
                 byte[] b = $1;
                 int offset = $2;
                 int length = $3;
-                System.err.println("sent(" + $0.port + "): " + new String(b, offset, length));
+                //System.err.println("sent(" + $0.port + "): " + new String(b, offset, length));
+                java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                Object[] key = new Object[] {$0, "WRITE"};
+                c.accept(key, new java.net.InetSocketAddress($0.address, $0.port));
+                c.accept(key, java.util.Arrays.copyOfRange(b, length, offset + length));
             }
         """);
     }
@@ -209,7 +227,11 @@ public class HymieAgent
                 byte[] b = $1;
                 int offset = $2;
                 int length = $3;
-                System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
+                //System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
+                java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                Object[] key = new Object[] {this$0, "WRITE"};
+                c.accept(key, new java.net.InetSocketAddress(this$0.getInetAddress(), this$0.getPort()));
+                c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + length));
             }
         """);
     }
@@ -245,6 +267,7 @@ public class HymieAgent
     private void transformLoggingHandlerReadMethod(CtMethod m)
     throws CannotCompileException
     {
+        //TODO
         m.insertBefore("""
                 java.net.InetSocketAddress address = (java.net.InetSocketAddress)$1.channel().remoteAddress();
                 if (address.getPort() == 443 || address.getPort() == 8443 || address.getPort() == 80 || address.getPort() == 8080)
@@ -262,6 +285,7 @@ public class HymieAgent
     private void transformLoggingHandlerWriteMethod(CtMethod m)
     throws CannotCompileException
     {
+        //TODO
         m.insertBefore("""
                 java.net.InetSocketAddress address = (java.net.InetSocketAddress)$1.channel().remoteAddress();
                 if (address.getPort() == 443 || address.getPort() == 8443 || address.getPort() == 80 || address.getPort() == 8080)
