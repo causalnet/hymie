@@ -1,5 +1,7 @@
 package au.net.causal.hymie;
 
+import org.apache.hc.core5.http.HttpException;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -47,7 +49,7 @@ public class TrafficRecorder
 
     private void processTraffic(Traffic traffic)
     {
-        //Some implementations send multiple 'finish' messages before everything is done
+        //Only process if we have a complete exchange
         if (traffic.inputData.isEmpty() || traffic.outputData.isEmpty())
             return;
 
@@ -63,10 +65,39 @@ public class TrafficRecorder
             {
                 inbuf.write(data);
             }
-            System.err.println(traffic.address + " request: " + outbuf.toString(StandardCharsets.UTF_8));
-            System.err.println(traffic.address + " response: " + inbuf.toString(StandardCharsets.UTF_8));
+
+            HttpExchangeParser parser = new HttpExchangeParser();
+            HttpExchangeParser.Exchange exchange = parser.parse(outbuf.toByteArray(), inbuf.toByteArray());
+
+            System.err.println(traffic.address + " request: " + exchange.getRequest());
+            for (var header : exchange.getRequest().getHeaders())
+            {
+                System.err.println(header);
+            }
+            if (exchange.getRequest().getEntity() != null)
+            {
+                ByteArrayOutputStream body = new ByteArrayOutputStream();
+                exchange.getRequest().getEntity().writeTo(body);
+                String bodyString = body.toString(StandardCharsets.UTF_8);
+                System.err.println(bodyString);
+            }
+            System.err.println(traffic.address + " response: " + exchange.getResponse());
+            for (var header : exchange.getResponse().getHeaders())
+            {
+                System.err.println(header);
+            }
+            if (exchange.getResponse().getEntity() != null)
+            {
+                ByteArrayOutputStream body = new ByteArrayOutputStream();
+                exchange.getResponse().getEntity().writeTo(body);
+                String bodyString = body.toString(StandardCharsets.UTF_8);
+                System.err.println(bodyString);
+            }
+
+            //System.err.println(traffic.address + " request: " + outbuf.toString(StandardCharsets.UTF_8));
+            //System.err.println(traffic.address + " response: " + inbuf.toString(StandardCharsets.UTF_8));
         }
-        catch (IOException e)
+        catch (IOException | HttpException e)
         {
             e.printStackTrace();
         }
