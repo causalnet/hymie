@@ -19,6 +19,7 @@ import org.apache.hc.core5.http.impl.io.IdentityInputStream;
 import org.apache.hc.core5.http.impl.io.SessionInputBufferImpl;
 import org.apache.hc.core5.http.io.SessionInputBuffer;
 import org.apache.hc.core5.http.io.entity.AbstractHttpEntity;
+import org.apache.hc.core5.http.io.entity.BufferedHttpEntity;
 import org.apache.hc.core5.http.io.entity.EmptyInputStream;
 import org.apache.hc.core5.http.message.BasicLineParser;
 import org.apache.hc.core5.io.Closer;
@@ -69,14 +70,14 @@ public class HttpExchangeParser
     throws HttpException, IOException
     {
         final long len = contentLengthStrategy.determineLength(request);
-        request.setEntity(createIncomingEntity(request, inBuffer, is, len, http1Config));
+        request.setEntity(new BufferedHttpEntity(createIncomingEntity(request, inBuffer, is, len, http1Config)));
     }
 
     private void receiveResponseEntity(final ClassicHttpResponse response, SessionInputBuffer inBuffer, InputStream is)
     throws HttpException, IOException
     {
         final long len = contentLengthStrategy.determineLength(response);
-        response.setEntity(createIncomingEntity(response, inBuffer, is, len, http1Config));
+        response.setEntity(new BufferedHttpEntity(createIncomingEntity(response, inBuffer, is, len, http1Config)));
     }
 
     HttpEntity createIncomingEntity(
@@ -243,8 +244,6 @@ public class HttpExchangeParser
         {
             StringBuilder buf = new StringBuilder();
 
-            //TODO big problem here - toString() consumes entities which are, at the moment, non-repeatable
-            //   so doing this twice or more errors out, need to fix it
             buf.append("Request: ").append(getRequest()).append('\n');
             for (Header header : getRequest().getHeaders())
             {
