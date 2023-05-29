@@ -5,7 +5,6 @@ import org.apache.hc.core5.http.HttpException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -68,34 +67,7 @@ public class TrafficRecorder
 
             HttpExchangeParser parser = new HttpExchangeParser();
             HttpExchangeParser.Exchange exchange = parser.parse(outbuf.toByteArray(), inbuf.toByteArray());
-
-            System.err.println(traffic.address + " request: " + exchange.getRequest());
-            for (var header : exchange.getRequest().getHeaders())
-            {
-                System.err.println(header);
-            }
-            if (exchange.getRequest().getEntity() != null)
-            {
-                ByteArrayOutputStream body = new ByteArrayOutputStream();
-                exchange.getRequest().getEntity().writeTo(body);
-                String bodyString = body.toString(StandardCharsets.UTF_8);
-                System.err.println(bodyString);
-            }
-            System.err.println(traffic.address + " response: " + exchange.getResponse());
-            for (var header : exchange.getResponse().getHeaders())
-            {
-                System.err.println(header);
-            }
-            if (exchange.getResponse().getEntity() != null)
-            {
-                ByteArrayOutputStream body = new ByteArrayOutputStream();
-                exchange.getResponse().getEntity().writeTo(body);
-                String bodyString = body.toString(StandardCharsets.UTF_8);
-                System.err.println(bodyString);
-            }
-
-            //System.err.println(traffic.address + " request: " + outbuf.toString(StandardCharsets.UTF_8));
-            //System.err.println(traffic.address + " response: " + inbuf.toString(StandardCharsets.UTF_8));
+            System.err.println(traffic.address + " " + exchange);
         }
         catch (IOException | HttpException e)
         {

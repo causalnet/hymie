@@ -24,9 +24,11 @@ import org.apache.hc.core5.http.message.BasicLineParser;
 import org.apache.hc.core5.io.Closer;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -49,21 +51,11 @@ public class HttpExchangeParser
 
         //Parse response
         SessionInputBufferImpl responseBuf = new SessionInputBufferImpl(http1Config.getBufferSize());
-        //buf.fillBuffer(new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8)));
 
         InputStream is = new ByteArrayInputStream(rawResponse);
         ClassicHttpResponse response = responseParser.parse(responseBuf, is);
 
         receiveResponseEntity(response, responseBuf, is);
-
-        /*
-        ByteArrayOutputStream body = new ByteArrayOutputStream();
-        response.getEntity().writeTo(body);
-
-        String bodyString = body.toString(StandardCharsets.UTF_8);
-
-        System.out.println(bodyString);
-        */
 
         return new Exchange(request, response);
     }
@@ -124,62 +116,74 @@ public class HttpExchangeParser
         }
 
         @Override
-        public boolean isRepeatable() {
+        public boolean isRepeatable()
+        {
             return false;
         }
 
         @Override
-        public boolean isChunked() {
+        public boolean isChunked()
+        {
             return chunked;
         }
 
         @Override
-        public long getContentLength() {
+        public long getContentLength()
+        {
             return len;
         }
 
         @Override
-        public String getContentType() {
+        public String getContentType()
+        {
             return contentType != null ? contentType.getValue() : null;
         }
 
         @Override
-        public String getContentEncoding() {
+        public String getContentEncoding()
+        {
             return contentEncoding != null ? contentEncoding.getValue() : null;
         }
 
         @Override
-        public InputStream getContent() throws IOException, IllegalStateException {
+        public InputStream getContent() throws IOException, IllegalStateException
+        {
             return content;
         }
 
         @Override
-        public boolean isStreaming() {
+        public boolean isStreaming()
+        {
             return content != null && content != EmptyInputStream.INSTANCE;
         }
 
         @Override
-        public void writeTo(final OutputStream outStream) throws IOException {
+        public void writeTo(final OutputStream outStream) throws IOException
+        {
             AbstractHttpEntity.writeTo(this, outStream);
         }
 
         @Override
-        public Supplier<List<? extends Header>> getTrailers() {
+        public Supplier<List<? extends Header>> getTrailers()
+        {
             return null;
         }
 
         @Override
-        public Set<String> getTrailerNames() {
+        public Set<String> getTrailerNames()
+        {
             return Collections.emptySet();
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() throws IOException
+        {
             Closer.close(content);
         }
 
         @Override
-        public String toString() {
+        public String toString()
+        {
             final StringBuilder sb = new StringBuilder();
             sb.append('[');
             sb.append("Content-Type: ");
@@ -220,6 +224,54 @@ public class HttpExchangeParser
         public ClassicHttpResponse getResponse()
         {
             return response;
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder buf = new StringBuilder();
+
+            buf.append("Request: ").append(getRequest()).append('\n');
+            for (Header header : getRequest().getHeaders())
+            {
+                buf.append(header);
+                buf.append('\n');
+            }
+            if (getRequest().getEntity() != null)
+            {
+                try (ByteArrayOutputStream body = new ByteArrayOutputStream())
+                {
+                    getRequest().getEntity().writeTo(body);
+                    String bodyString = body.toString(StandardCharsets.UTF_8);
+                    buf.append(bodyString);
+                    buf.append('\n');
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+            buf.append("Response: ").append(getResponse()).append('\n');
+            for (Header header : getResponse().getHeaders())
+            {
+                buf.append(header);
+                buf.append('\n');
+            }
+            if (getResponse().getEntity() != null)
+            {
+                try (ByteArrayOutputStream body = new ByteArrayOutputStream())
+                {
+                    getResponse().getEntity().writeTo(body);
+                    String bodyString = body.toString(StandardCharsets.UTF_8);
+                    buf.append(bodyString);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            return buf.toString();
         }
     }
 }
