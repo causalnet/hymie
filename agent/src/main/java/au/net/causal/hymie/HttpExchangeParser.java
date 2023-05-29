@@ -46,18 +46,30 @@ public class HttpExchangeParser
 
         //Parse request
         SessionInputBufferImpl requestBuf = new SessionInputBufferImpl(http1Config.getBufferSize());
-        ClassicHttpRequest request = requestParser.parse(requestBuf, new ByteArrayInputStream(rawRequest));
-        //TODO support entities on requests as well
+        ClassicHttpRequest request;
+        try (InputStream is = new ByteArrayInputStream(rawRequest))
+        {
+            request = requestParser.parse(requestBuf, new ByteArrayInputStream(rawRequest));
+            receiveRequestEntity(request, requestBuf, is);
+        }
 
         //Parse response
         SessionInputBufferImpl responseBuf = new SessionInputBufferImpl(http1Config.getBufferSize());
-
-        InputStream is = new ByteArrayInputStream(rawResponse);
-        ClassicHttpResponse response = responseParser.parse(responseBuf, is);
-
-        receiveResponseEntity(response, responseBuf, is);
+        ClassicHttpResponse response;
+        try (InputStream is = new ByteArrayInputStream(rawResponse))
+        {
+            response = responseParser.parse(responseBuf, is);
+            receiveResponseEntity(response, responseBuf, is);
+        }
 
         return new Exchange(request, response);
+    }
+
+    private void receiveRequestEntity(final ClassicHttpRequest request, SessionInputBuffer inBuffer, InputStream is)
+    throws HttpException, IOException
+    {
+        final long len = contentLengthStrategy.determineLength(request);
+        request.setEntity(createIncomingEntity(request, inBuffer, is, len, http1Config));
     }
 
     private void receiveResponseEntity(final ClassicHttpResponse response, SessionInputBuffer inBuffer, InputStream is)
@@ -231,6 +243,8 @@ public class HttpExchangeParser
         {
             StringBuilder buf = new StringBuilder();
 
+            //TODO big problem here - toString() consumes entities which are, at the moment, non-repeatable
+            //   so doing this twice or more errors out, need to fix it
             buf.append("Request: ").append(getRequest()).append('\n');
             for (Header header : getRequest().getHeaders())
             {
