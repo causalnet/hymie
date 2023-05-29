@@ -1,6 +1,7 @@
 package au.net.causal.hymie;
 
-import java.lang.reflect.Field;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -39,23 +40,43 @@ public class TrafficRecorder
         return REGISTRATION_KEY;
     }
 
+    public void processAllTraffic()
+    {
+        trafficMap.values().forEach(this::processTraffic);
+    }
+
+    private void processTraffic(Traffic traffic)
+    {
+        //Some implementations send multiple 'finish' messages before everything is done
+        if (traffic.inputData.isEmpty() || traffic.outputData.isEmpty())
+            return;
+
+        try
+        {
+            ByteArrayOutputStream inbuf = new ByteArrayOutputStream();
+            ByteArrayOutputStream outbuf = new ByteArrayOutputStream();
+            for (byte[] data : traffic.outputData)
+            {
+                outbuf.write(data);
+            }
+            for (byte[] data : traffic.inputData)
+            {
+                inbuf.write(data);
+            }
+            System.err.println(traffic.address + " request: " + outbuf.toString(StandardCharsets.UTF_8));
+            System.err.println(traffic.address + " response: " + inbuf.toString(StandardCharsets.UTF_8));
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+    }
+
     public class IsolatedConsumer implements BiConsumer<Object, Object>
     {
         private KeyIO lookUpRealKey(Object key)
         {
             //Incoming object may be one of many things
-            /*
-            if ("sun.security.ssl.SSLSocketImpl.AppInputStream".equals(key.getClass().getCanonicalName()))
-            {
-                Object socketObject = readOuterClassObject(key);
-                return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), IO.READ);
-            }
-            else if ("sun.security.ssl.SSLSocketImpl.AppOutputStream".equals(key.getClass().getCanonicalName()))
-            {
-                Object socketObject = readOuterClassObject(key);
-                return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), IO.WRITE);
-            }
-             */
             if (key instanceof Object[] && ((Object[])key).length == 2)
             {
                 Object[] compKey = (Object[])key;
@@ -63,11 +84,11 @@ public class TrafficRecorder
                 IO io = IO.valueOf((String)compKey[1]);
 
                 if ("sun.nio.ch.NioSocketImpl".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io);
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else if ("sun.security.ssl.SSLSocketImpl".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io);
-                else if ("io.netty.handler.logging.LoggingHandler".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io);
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                else if ("io.netty.handler.logging.LoggingHandler".equals(socketObject.getClass().getCanonicalName()) || "reactor.netty.transport.logging.ReactorNettyLoggingHandler".equals(socketObject.getClass().getCanonicalName()))
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else
                     throw new Error("Unknown socket object type: " + socketObject.getClass());
             }
@@ -79,7 +100,7 @@ public class TrafficRecorder
         public void accept(Object key, Object data)
         {
             KeyIO realKey = lookUpRealKey(key);
-            Traffic traffic = trafficMap.computeIfAbsent(realKey.key, k -> new Traffic());
+            Traffic traffic = trafficMap.computeIfAbsent(realKey.key, k -> new Traffic(realKey.getSocketObjectClassName()));
 
             if (data instanceof SocketAddress)
                 traffic.address = (SocketAddress)data;
@@ -92,7 +113,7 @@ public class TrafficRecorder
                 }
 
                 //Logging
-                System.err.println(traffic.address + " " + realKey.io + ": " + new String((byte[])data, StandardCharsets.UTF_8));
+                //System.err.println(traffic.address + " " + realKey.io + ": " + new String((byte[])data, StandardCharsets.UTF_8));
             }
         }
     }
@@ -100,8 +121,14 @@ public class TrafficRecorder
     private static class Traffic
     {
         private SocketAddress address;
+        private final String socketObjectClassName;
         private final List<byte[]> inputData = new CopyOnWriteArrayList<>();
         private final List<byte[]> outputData = new CopyOnWriteArrayList<>();
+
+        public Traffic(String socketObjectClassName)
+        {
+            this.socketObjectClassName = socketObjectClassName;
+        }
     }
 
     private static enum IO
@@ -114,11 +141,13 @@ public class TrafficRecorder
     {
         private final long key;
         private final IO io;
+        private final String socketObjectClassName;
 
-        public KeyIO(long key, IO io)
+        public KeyIO(long key, IO io, String socketObjectClassName)
         {
             this.key = key;
             this.io = io;
+            this.socketObjectClassName = socketObjectClassName;
         }
 
         public long getKey()
@@ -129,6 +158,11 @@ public class TrafficRecorder
         public IO getIo()
         {
             return io;
+        }
+
+        public String getSocketObjectClassName()
+        {
+            return socketObjectClassName;
         }
 
         @Override

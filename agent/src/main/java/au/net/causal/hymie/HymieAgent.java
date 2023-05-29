@@ -27,6 +27,12 @@ public class HymieAgent
 
         HymieAgent agent = new HymieAgent();
         agent.run(inst);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() ->
+        {
+            System.err.println("End run:");
+            agent.trafficRecorder.processAllTraffic();
+        }));
     }
 
     public void run(Instrumentation inst)
@@ -53,7 +59,6 @@ public class HymieAgent
 
                         CtMethod readMethod = ctClass.getDeclaredMethod("read");
                         transformNioSocketImplReadMethod(readMethod);
-
                         CtMethod writeMethod = ctClass.getDeclaredMethod("write");
                         transformNioSocketImplWriteMethod(writeMethod);
 
@@ -267,16 +272,23 @@ public class HymieAgent
     private void transformLoggingHandlerReadMethod(CtMethod m)
     throws CannotCompileException
     {
-        //TODO
         m.insertBefore("""
                 java.net.InetSocketAddress address = (java.net.InetSocketAddress)$1.channel().remoteAddress();
                 if (address.getPort() == 443 || address.getPort() == 8443 || address.getPort() == 80 || address.getPort() == 8080)
                 {
                     if (msg instanceof io.netty.buffer.ByteBuf)
                     {
-                       io.netty.buffer.ByteBuf buf = (io.netty.buffer.ByteBuf)$2;
-                       String s = buf.toString(java.nio.charset.StandardCharsets.UTF_8);
-                       System.err.println("nettyReceived(" + address.getPort() + "): " + s);
+                        io.netty.buffer.ByteBuf buf = (io.netty.buffer.ByteBuf)$2;
+                       
+                        byte[] data = new byte[buf.readableBytes()];
+                        buf.getBytes(buf.readerIndex(), data);
+                        java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                        Object[] key = new Object[] {$0, "READ"};
+                        c.accept(key, address);
+                        c.accept(key, data);
+                       
+                        //String s = buf.toString(java.nio.charset.StandardCharsets.UTF_8);
+                        //System.err.println("nettyReceived(" + address.getPort() + "): " + s);
                     }
                 }
         """);
@@ -285,16 +297,23 @@ public class HymieAgent
     private void transformLoggingHandlerWriteMethod(CtMethod m)
     throws CannotCompileException
     {
-        //TODO
         m.insertBefore("""
                 java.net.InetSocketAddress address = (java.net.InetSocketAddress)$1.channel().remoteAddress();
                 if (address.getPort() == 443 || address.getPort() == 8443 || address.getPort() == 80 || address.getPort() == 8080)
                 {
                     if (msg instanceof io.netty.buffer.ByteBuf)
                     {
-                       io.netty.buffer.ByteBuf buf = (io.netty.buffer.ByteBuf)$2;
-                       String s = buf.toString(java.nio.charset.StandardCharsets.UTF_8);
-                       System.err.println("nettySent(" + address.getPort() + "): " + s);
+                        io.netty.buffer.ByteBuf buf = (io.netty.buffer.ByteBuf)$2;
+                       
+                        byte[] data = new byte[buf.readableBytes()];
+                        buf.getBytes(buf.readerIndex(), data);
+                        java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                        Object[] key = new Object[] {$0, "WRITE"};
+                        c.accept(key, address);
+                        c.accept(key, data);
+
+                       //String s = buf.toString(java.nio.charset.StandardCharsets.UTF_8);
+                       //System.err.println("nettySent(" + address.getPort() + "): " + s);
                     }
                 }
         """);
