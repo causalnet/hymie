@@ -173,7 +173,7 @@ public class HymieAgent
                 if (n > 0)
                 {
                     java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
-                    Object[] key = new Object[] {$0, "READ"};
+                    Object[] key = new Object[] {$0, null, "READ"};
                     c.accept(key, new java.net.InetSocketAddress($0.address, $0.port));
                     c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + n));
                     //System.err.println("received(" + $0.port + "): " + new String(b, offset, n));
@@ -197,7 +197,7 @@ public class HymieAgent
                 {
                     //System.err.println("SSLreceived(" + this$0.getPort() + "): " + new String(b, offset, n));
                     java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
-                    Object[] key = new Object[] {this$0, "READ"};
+                    Object[] key = new Object[] {this$0, null, "READ"};
                     c.accept(key, new java.net.InetSocketAddress(this$0.getInetAddress(), this$0.getPort()));
                     c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + n));
                 }
@@ -216,7 +216,7 @@ public class HymieAgent
                 int length = $3;
                 //System.err.println("sent(" + $0.port + "): " + new String(b, offset, length));
                 java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
-                Object[] key = new Object[] {$0, "WRITE"};
+                Object[] key = new Object[] {$0, null, "WRITE"};
                 c.accept(key, new java.net.InetSocketAddress($0.address, $0.port));
                 c.accept(key, java.util.Arrays.copyOfRange(b, length, offset + length));
             }
@@ -234,7 +234,7 @@ public class HymieAgent
                 int length = $3;
                 //System.err.println("SSLsent(" + this$0.getPort() + "): " + new String(b, offset, length));
                 java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
-                Object[] key = new Object[] {this$0, "WRITE"};
+                Object[] key = new Object[] {this$0, null, "WRITE"};
                 c.accept(key, new java.net.InetSocketAddress(this$0.getInetAddress(), this$0.getPort()));
                 c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + length));
             }
@@ -283,7 +283,7 @@ public class HymieAgent
                         byte[] data = new byte[buf.readableBytes()];
                         buf.getBytes(buf.readerIndex(), data);
                         java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
-                        Object[] key = new Object[] {$0, "READ"};
+                        Object[] key = new Object[] {$0, $1.channel().id().asLongText(), "READ"};
                         c.accept(key, address);
                         c.accept(key, data);
                        
@@ -308,7 +308,7 @@ public class HymieAgent
                         byte[] data = new byte[buf.readableBytes()];
                         buf.getBytes(buf.readerIndex(), data);
                         java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
-                        Object[] key = new Object[] {$0, "WRITE"};
+                        Object[] key = new Object[] {$0, $1.channel().id().asLongText(), "WRITE"};
                         c.accept(key, address);
                         c.accept(key, data);
 

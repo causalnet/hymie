@@ -24,7 +24,7 @@ public class TrafficRecorder
     /**
      * Keeps track of which socket object have which ID.  Does not prevent the network objects from being GCed.
      */
-    private final Map<Object, Long> networkObjectToIdMap = Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<SocketObjectAndId, Long> networkObjectToIdMap = Collections.synchronizedMap(new WeakHashMap<>());
 
     /**
      * Maps network object IDs to traffic.
@@ -80,18 +80,20 @@ public class TrafficRecorder
         private KeyIO lookUpRealKey(Object key)
         {
             //Incoming object may be one of many things
-            if (key instanceof Object[] && ((Object[])key).length == 2)
+            if (key instanceof Object[] && ((Object[])key).length == 3)
             {
                 Object[] compKey = (Object[])key;
                 Object socketObject = compKey[0];
-                IO io = IO.valueOf((String)compKey[1]);
+                String socketId = (String)compKey[1];
+                IO io = IO.valueOf((String)compKey[2]);
+                SocketObjectAndId si = new SocketObjectAndId(socketObject, socketId);
 
                 if ("sun.nio.ch.NioSocketImpl".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(si, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else if ("sun.security.ssl.SSLSocketImpl".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(si, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else if ("io.netty.handler.logging.LoggingHandler".equals(socketObject.getClass().getCanonicalName()) || "reactor.netty.transport.logging.ReactorNettyLoggingHandler".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(socketObject, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(si, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else
                     throw new Error("Unknown socket object type: " + socketObject.getClass());
             }
@@ -138,6 +140,43 @@ public class TrafficRecorder
     {
         READ,
         WRITE
+    }
+
+    private static class SocketObjectAndId
+    {
+        private final Object socketObject;
+        private final String id;
+
+        public SocketObjectAndId(Object socketObject, String id)
+        {
+            this.socketObject = socketObject;
+            this.id = id;
+        }
+
+        public Object getSocketObject()
+        {
+            return socketObject;
+        }
+
+        public String getId()
+        {
+            return id;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SocketObjectAndId that = (SocketObjectAndId) o;
+            return Objects.equals(getSocketObject(), that.getSocketObject()) && Objects.equals(getId(), that.getId());
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(getSocketObject(), getId());
+        }
     }
 
     private static class KeyIO

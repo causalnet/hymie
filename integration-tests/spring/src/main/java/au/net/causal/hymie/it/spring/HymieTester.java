@@ -26,5 +26,14 @@ public class HymieTester
                   .block();
 
         System.out.println("Response: " + response);
+
+        //Do a 2nd request
+        response = client.get()
+                         .uri(URI.create("https://www.google.com"))
+                         .retrieve()
+                         .bodyToMono(String.class)
+                         .block();
+
+        System.out.println("Response: " + response);
     }
 }
