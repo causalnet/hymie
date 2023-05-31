@@ -50,7 +50,7 @@ public class HttpExchangeParser
         ClassicHttpRequest request;
         try (InputStream is = new ByteArrayInputStream(rawRequest))
         {
-            request = requestParser.parse(requestBuf, new ByteArrayInputStream(rawRequest));
+            request = requestParser.parse(requestBuf, is);
             receiveRequestEntity(request, requestBuf, is);
         }
 

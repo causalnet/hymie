@@ -5,11 +5,7 @@ import org.apache.hc.core5.http.HttpException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.SocketAddress;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.WeakHashMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,7 +20,7 @@ public class TrafficRecorder
     /**
      * Keeps track of which socket object have which ID.  Does not prevent the network objects from being GCed.
      */
-    private final Map<SocketObjectAndId, Long> networkObjectToIdMap = Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<ExchangeKey, Long> networkObjectToIdMap = new ConcurrentHashMap<>();
 
     /**
      * Maps network object IDs to traffic.
@@ -43,6 +39,7 @@ public class TrafficRecorder
 
     public void processAllTraffic()
     {
+        //System.err.println("Traffic count: " + trafficMap.keySet());
         trafficMap.values().forEach(this::processTraffic);
     }
 
@@ -50,7 +47,10 @@ public class TrafficRecorder
     {
         //Only process if we have a complete exchange
         if (traffic.inputData.isEmpty() || traffic.outputData.isEmpty())
+        {
+            //System.err.println("Traffic early exit");
             return;
+        }
 
         try
         {
@@ -80,20 +80,20 @@ public class TrafficRecorder
         private KeyIO lookUpRealKey(Object key)
         {
             //Incoming object may be one of many things
-            if (key instanceof Object[] && ((Object[])key).length == 3)
+            if (key instanceof Object[] && ((Object[])key).length > 1)
             {
                 Object[] compKey = (Object[])key;
-                Object socketObject = compKey[0];
-                String socketId = (String)compKey[1];
-                IO io = IO.valueOf((String)compKey[2]);
-                SocketObjectAndId si = new SocketObjectAndId(socketObject, socketId);
+                IO io = IO.valueOf((String)compKey[0]);
+                Object socketObject = compKey[1];
+                ExchangeKey ek = new ExchangeKey(socketObject, List.of(Arrays.copyOfRange(compKey, 2, compKey.length)));
+                //System.err.println("ExchangeKey: " + ek);
 
                 if ("sun.nio.ch.NioSocketImpl".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(si, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(ek, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else if ("sun.security.ssl.SSLSocketImpl".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(si, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(ek, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else if ("io.netty.handler.logging.LoggingHandler".equals(socketObject.getClass().getCanonicalName()) || "reactor.netty.transport.logging.ReactorNettyLoggingHandler".equals(socketObject.getClass().getCanonicalName()))
-                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(si, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
+                    return new KeyIO(networkObjectToIdMap.computeIfAbsent(ek, s -> idCounter.incrementAndGet()), io, socketObject.getClass().getCanonicalName());
                 else
                     throw new Error("Unknown socket object type: " + socketObject.getClass());
             }
@@ -104,7 +104,12 @@ public class TrafficRecorder
         @Override
         public void accept(Object key, Object data)
         {
+            //System.err.println("Accepting data: " + Arrays.toString((Object[])key));
+
             KeyIO realKey = lookUpRealKey(key);
+
+            //System.err.println("--> real key: " + realKey);
+
             Traffic traffic = trafficMap.computeIfAbsent(realKey.key, k -> new Traffic(realKey.getSocketObjectClassName()));
 
             if (data instanceof SocketAddress)
@@ -142,25 +147,16 @@ public class TrafficRecorder
         WRITE
     }
 
-    private static class SocketObjectAndId
+    private static class ExchangeKey
     {
+        //TODO need to be weak references, unless a subkey is a string or something
         private final Object socketObject;
-        private final String id;
+        private final List<Object> subKeys;
 
-        public SocketObjectAndId(Object socketObject, String id)
+        public ExchangeKey(Object socketObject, List<Object> subKeys)
         {
             this.socketObject = socketObject;
-            this.id = id;
-        }
-
-        public Object getSocketObject()
-        {
-            return socketObject;
-        }
-
-        public String getId()
-        {
-            return id;
+            this.subKeys = subKeys;
         }
 
         @Override
@@ -168,14 +164,23 @@ public class TrafficRecorder
         {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            SocketObjectAndId that = (SocketObjectAndId) o;
-            return Objects.equals(getSocketObject(), that.getSocketObject()) && Objects.equals(getId(), that.getId());
+            ExchangeKey that = (ExchangeKey) o;
+            return Objects.equals(socketObject, that.socketObject) && Objects.equals(subKeys, that.subKeys);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(getSocketObject(), getId());
+            return Objects.hash(socketObject, subKeys);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "ExchangeKey{" +
+                    "socketObject=" + socketObject +
+                    ", subKeys=" + subKeys +
+                    '}';
         }
     }
 
@@ -220,6 +225,16 @@ public class TrafficRecorder
         public int hashCode()
         {
             return Objects.hash(getKey(), getIo());
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeyIO{" +
+                    "key=" + key +
+                    ", io=" + io +
+                    ", socketObjectClassName='" + socketObjectClassName + '\'' +
+                    '}';
         }
     }
 }
