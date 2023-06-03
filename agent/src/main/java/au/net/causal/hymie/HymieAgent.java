@@ -31,7 +31,7 @@ public class HymieAgent
         Runtime.getRuntime().addShutdownHook(new Thread(() ->
         {
             System.err.println("End run:");
-            agent.trafficRecorder.processAllTraffic();
+            System.err.println(agent.trafficRecorder.processAllTraffic());
         }));
     }
 

@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class TrafficRecorder
 {
@@ -37,19 +38,18 @@ public class TrafficRecorder
         return REGISTRATION_KEY;
     }
 
-    public void processAllTraffic()
+    public String processAllTraffic()
     {
-        //System.err.println("Traffic count: " + trafficMap.keySet());
-        trafficMap.values().forEach(this::processTraffic);
+        return trafficMap.values().stream().map(this::processTraffic).collect(Collectors.joining(System.lineSeparator()));
     }
 
-    private void processTraffic(Traffic traffic)
+    private String processTraffic(Traffic traffic)
     {
         //Only process if we have a complete exchange
         if (traffic.inputData.isEmpty() || traffic.outputData.isEmpty())
         {
             //System.err.println("Traffic early exit");
-            return;
+            return "";
         }
 
         try
@@ -67,11 +67,12 @@ public class TrafficRecorder
 
             HttpExchangeParser parser = new HttpExchangeParser();
             HttpExchangeParser.Exchange exchange = parser.parse(outbuf.toByteArray(), inbuf.toByteArray());
-            System.err.println(traffic.address + " " + exchange);
+            return traffic.address + " " + exchange;
         }
         catch (IOException | HttpException e)
         {
             e.printStackTrace();
+            return "";
         }
     }
 
