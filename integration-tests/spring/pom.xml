@@ -8,13 +8,12 @@
     </parent>
 
     <artifactId>hymie-integration-tests-spring</artifactId>
-    <packaging>war</packaging>
+    <packaging>jar</packaging>
 
     <name>Hymie Integration Tests - Spring</name>
 
     <properties>
         <spring.boot.version>3.1.0</spring.boot.version>
-        <tomcat.version>10.1.8</tomcat.version>
     </properties>
 
     <dependencyManagement>
@@ -37,16 +36,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-tomcat</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-devtools</artifactId>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -77,57 +66,52 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring.boot.version}</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.0</version>
                 <executions>
                     <execution>
-                        <id>repackage</id>
+                        <id>copy-agent-jar</id>
                         <goals>
-                            <goal>repackage</goal>
+                            <goal>copy</goal>
                         </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>hymie-agent</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <destFileName>hymie-agent.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}/agent</outputDirectory>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.cargo</groupId>
-                <artifactId>cargo-maven3-plugin</artifactId>
-                <version>1.10.7</version>
-                <executions>
-                    <execution>
-                        <id>start-container</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>start</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>stop-container</id>
-                        <!-- Intentionally here to stop Tomcat *before* the failsafe tests run -->
-                        <!-- The integration tests read the logs from the agent that were generated from a shutdown hook -->
-                        <phase>integration-test</phase>
-                        <goals>
-                            <goal>stop</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <container>
-                        <containerId>tomcat10x</containerId>
-                        <log>${project.build.directory}/cargo-tomcat.log</log>
-                        <artifactInstaller>
-                            <groupId>org.apache.tomcat</groupId>
-                            <artifactId>tomcat</artifactId>
-                            <version>${tomcat.version}</version>
-                        </artifactInstaller>
-                    </container>
-                </configuration>
-            </plugin>
-            <!-- TODO executable code that will exercise the agent in pre-integration-test phase -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <reuseForks>false</reuseForks>
+                </configuration>
                 <executions>
+                    <!-- Just run the NetworkExerciser to make an HTTP request which will make the agent do work -->
+                    <execution>
+                        <id>exerciser</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                        </goals>
+                        <phase>pre-integration-test</phase>
+                        <configuration>
+                            <includes>
+                                <include>**/*Exerciser.java</include>
+                            </includes>
+                            <argLine>-javaagent:${project.build.directory}/agent/hymie-agent.jar</argLine>
+                        </configuration>
+                    </execution>
                     <execution>
                         <goals>
                             <goal>integration-test</goal>

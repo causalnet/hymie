@@ -21,11 +21,11 @@ import static org.assertj.core.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
-                classes = TestSpring.TestConfiguration.class,
+                classes = SpringExerciser.TestConfiguration.class,
                 properties = {"server.port=8080"}
 )
 @AutoConfigureMockMvc
-class TestSpring
+class SpringExerciser
 {
     @LocalServerPort
     private int serverPort;
