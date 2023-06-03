@@ -8,26 +8,49 @@
     </parent>
 
     <artifactId>hymie-integration-tests-spring</artifactId>
-    <packaging>jar</packaging>
+    <packaging>war</packaging>
 
     <name>Hymie Integration Tests - Spring</name>
+
+    <properties>
+        <spring.boot.version>3.1.0</spring.boot.version>
+        <tomcat.version>10.1.8</tomcat.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
-            <version>3.1.0</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <version>3.1.0</version>
-            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
-            <version>3.1.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -48,8 +71,71 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.4.7</version>
-            <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring.boot.version}</version>
+                <executions>
+                    <execution>
+                        <id>repackage</id>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.cargo</groupId>
+                <artifactId>cargo-maven3-plugin</artifactId>
+                <version>1.10.7</version>
+                <executions>
+                    <execution>
+                        <id>start-container</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>start</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>stop-container</id>
+                        <!-- Intentionally here to stop Tomcat *before* the failsafe tests run -->
+                        <!-- The integration tests read the logs from the agent that were generated from a shutdown hook -->
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>stop</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <container>
+                        <containerId>tomcat10x</containerId>
+                        <log>${project.build.directory}/cargo-tomcat.log</log>
+                        <artifactInstaller>
+                            <groupId>org.apache.tomcat</groupId>
+                            <artifactId>tomcat</artifactId>
+                            <version>${tomcat.version}</version>
+                        </artifactInstaller>
+                    </container>
+                </configuration>
+            </plugin>
+            <!-- TODO executable code that will exercise the agent in pre-integration-test phase -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
