@@ -94,6 +94,10 @@
                                     <pattern>org.apache.hc.core5</pattern>
                                     <shadedPattern>au.net.causal.hymie.shaded.org.apache.hc.core5</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>com.fasterxml.jackson</pattern>
+                                    <shadedPattern>au.net.causal.hymie.shaded.com.fasterxml.jackson</shadedPattern>
+                                </relocation>
                             </relocations>
                         </configuration>
                     </execution>
