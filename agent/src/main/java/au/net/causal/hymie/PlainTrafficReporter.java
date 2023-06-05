@@ -1,10 +1,13 @@
 package au.net.causal.hymie;
 
+import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Writer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 
@@ -23,49 +26,40 @@ public class PlainTrafficReporter implements TrafficReporter
     private void reportSingle(HttpExchangeParser.Exchange exchange, Writer out)
     throws IOException
     {
-        StringBuilder buf = new StringBuilder();
-
-        buf.append("Request: ").append(exchange.getRequest()).append('\n');
+        out.append("Request: ").append(exchange.getRequest().toString()).append('\n');
         for (Header header : exchange.getRequest().getHeaders())
         {
-            buf.append(header);
-            buf.append('\n');
+            out.append(header.toString());
+            out.append('\n');
         }
         if (exchange.getRequest().getEntity() != null)
-        {
-            try (ByteArrayOutputStream body = new ByteArrayOutputStream())
-            {
-                exchange.getRequest().getEntity().writeTo(body);
-                String bodyString = body.toString(StandardCharsets.UTF_8);
-                buf.append(bodyString);
-                buf.append('\n');
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-        buf.append("Response: ").append(exchange.getResponse()).append('\n');
+            reportBody(ContentType.parseLenient(exchange.getRequest().getEntity().getContentType()), exchange.getRequest().getEntity().getContent(), out);
+
+        out.append("Response: ").append(exchange.getResponse().toString()).append('\n');
         for (Header header : exchange.getResponse().getHeaders())
         {
-            buf.append(header);
-            buf.append('\n');
+            out.append(header.toString());
+            out.append('\n');
         }
         if (exchange.getResponse().getEntity() != null)
-        {
-            try (ByteArrayOutputStream body = new ByteArrayOutputStream())
-            {
-                exchange.getResponse().getEntity().writeTo(body);
-                String bodyString = body.toString(StandardCharsets.UTF_8);
-                buf.append(bodyString);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
+            reportBody(ContentType.parseLenient(exchange.getResponse().getEntity().getContentType()), exchange.getResponse().getEntity().getContent(), out);
 
-        out.write(buf.toString());
-        out.write("\n");
+        out.write('\n');
+    }
+
+    protected void reportBody(ContentType contentType, InputStream data, Writer out)
+    throws IOException
+    {
+        Charset charset;
+        if (contentType == null)
+            charset = StandardCharsets.UTF_8;
+        else
+            charset = contentType.getCharset(StandardCharsets.UTF_8);
+
+        try (InputStreamReader in = new InputStreamReader(data, charset))
+        {
+            in.transferTo(out);
+        }
+        out.write('\n');
     }
 }
