@@ -84,6 +84,10 @@
                             <skip>${skipShade}</skip>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer">
+                                    <addHeader>false</addHeader>
+                                </transformer>
                             </transformers>
                             <relocations>
                                 <relocation>
@@ -97,6 +101,13 @@
                                 <relocation>
                                     <pattern>com.fasterxml.jackson</pattern>
                                     <shadedPattern>au.net.causal.hymie.shaded.com.fasterxml.jackson</shadedPattern>
+                                </relocation>
+
+                                <!-- Dodgey, but need to get these out of there so they don't cause conflicts with real stuff the agent is running with -->
+                                <!-- Essentially these versioned classes will be ignored once relocated like this, but Jackson works OK with this -->
+                                <relocation>
+                                    <pattern>META-INF.versions</pattern>
+                                    <shadedPattern>au.net.causal.hymie.shaded.META-INF.versions</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>
