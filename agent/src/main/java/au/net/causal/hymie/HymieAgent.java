@@ -424,8 +424,9 @@ public class HymieAgent
 
         public static enum Format
         {
-            PLAIN(new PlainTrafficReporter());
-            //TODO PLAIN_FORMATTED, JSON
+            PLAIN(new PlainTrafficReporter()),
+            PLAIN_FORMATTED(new PlainFormattedTrafficReporter());
+            //TODO JSON
 
             private final TrafficReporter reporter;
 
