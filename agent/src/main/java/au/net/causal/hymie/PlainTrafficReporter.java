@@ -10,6 +10,7 @@ import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Iterator;
 
 public class PlainTrafficReporter implements TrafficReporter
 {
@@ -17,9 +18,12 @@ public class PlainTrafficReporter implements TrafficReporter
     public void report(Collection<? extends HttpExchangeParser.Exchange> exchanges, Writer out)
     throws IOException
     {
-        for (var exchange : exchanges)
+        for (Iterator<? extends HttpExchangeParser.Exchange> iterator = exchanges.iterator(); iterator.hasNext(); )
         {
+            HttpExchangeParser.Exchange exchange = iterator.next();
             reportSingle(exchange, out);
+            if (iterator.hasNext())
+                out.write("-----------------------------------------------------------\n");
         }
     }
 
