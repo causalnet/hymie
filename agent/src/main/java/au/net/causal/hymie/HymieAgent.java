@@ -11,11 +11,21 @@ import javassist.expr.ExprEditor;
 import javassist.expr.FieldAccess;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.ProtectionDomain;
+import java.text.ParseException;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 public class HymieAgent
 {
@@ -23,19 +33,67 @@ public class HymieAgent
 
     public static void premain(String agentArgs, Instrumentation inst)
     {
-        System.out.println("Hello from Hymie agent");
+        //Parse the args
+        Args args;
+        try
+        {
+            args = Args.parse(agentArgs);
+        }
+        catch (ParseException e)
+        {
+            System.err.println("Error parsing Hymie agent args - agent will be disabled: " + e);
+            e.printStackTrace();
+            return;
+        }
+
+        ExceptionalSupplier<Writer, IOException> dumpOut;
+        if (args.file != null)
+        {
+            try
+            {
+                Files.write(args.file, new byte[0]);
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+            dumpOut = () -> Files.newBufferedWriter(args.file, StandardOpenOption.APPEND);
+        }
+        else
+            dumpOut = () -> new PrintWriter(System.err);
 
         HymieAgent agent = new HymieAgent();
-        agent.run(inst);
+        agent.run(inst, args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() ->
         {
-            System.err.println("End run:");
-            System.err.println(agent.trafficRecorder.processAllTraffic());
+            agent.dumpSafely(dumpOut);
         }));
     }
 
-    public void run(Instrumentation inst)
+    public void dump(Writer out)
+    throws IOException
+    {
+        out.write(trafficRecorder.processAllTraffic());
+    }
+
+    public void dumpSafely(ExceptionalSupplier<Writer, IOException> out)
+    {
+        try
+        {
+            try (Writer w = out.get())
+            {
+                dump(w);
+            }
+        }
+        catch (IOException e)
+        {
+            System.err.println("Hymie encountered an error dumping network traffic: " + e);
+            e.printStackTrace();
+        }
+    }
+
+    public void run(Instrumentation inst, Args args)
     {
         //Install our hacks into system properties
         trafficRecorder.register();
@@ -317,5 +375,50 @@ public class HymieAgent
                     }
                 }
         """);
+    }
+
+    public static class Args
+    {
+        private Format format;
+        private Path file;
+        private Duration dumpInterval;
+
+        private Args()
+        {
+        }
+
+        public static Args parse(String s)
+        throws ParseException
+        {
+            Args args = new Args();
+
+            if (s != null)
+            {
+                for (String part : s.split(Pattern.quote(",")))
+                {
+                    String[] keyValue = part.split(Pattern.quote("="), 2);
+                    if (keyValue.length < 2)
+                        throw new ParseException("Error parsing arg part: " + part, 0);
+
+                    String key = keyValue[0];
+                    String value = keyValue[1];
+
+                    switch (key)
+                    {
+                        case "format" -> args.format = Format.valueOf(value.toUpperCase(Locale.ROOT));
+                        case "file" -> args.file = Path.of(value);
+                        case "dumpInterval" -> args.dumpInterval = Duration.parse(value);
+                        default -> throw new ParseException("Unknown arg: " + key, 0);
+                    }
+                }
+            }
+
+            return args;
+        }
+
+        public static enum Format
+        {
+            PLAIN, JSON
+        }
     }
 }
