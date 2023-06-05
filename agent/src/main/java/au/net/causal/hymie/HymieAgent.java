@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 
 public class HymieAgent
 {
+    private final Args args;
     private final TrafficRecorder trafficRecorder = new TrafficRecorder();
 
     public static void premain(String agentArgs, Instrumentation inst)
@@ -62,8 +63,8 @@ public class HymieAgent
         else
             dumpOut = () -> new PrintWriter(System.err);
 
-        HymieAgent agent = new HymieAgent();
-        agent.run(inst, args);
+        HymieAgent agent = new HymieAgent(args);
+        agent.run(inst);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() ->
         {
@@ -71,10 +72,15 @@ public class HymieAgent
         }));
     }
 
+    public HymieAgent(Args args)
+    {
+        this.args = args;
+    }
+
     public void dump(Writer out)
     throws IOException
     {
-        out.write(trafficRecorder.processAllTraffic());
+        trafficRecorder.processAllTraffic(args.format.getReporter(), out);
     }
 
     public void dumpSafely(ExceptionalSupplier<Writer, IOException> out)
@@ -93,7 +99,7 @@ public class HymieAgent
         }
     }
 
-    public void run(Instrumentation inst, Args args)
+    public void run(Instrumentation inst)
     {
         //Install our hacks into system properties
         trafficRecorder.register();
@@ -379,7 +385,7 @@ public class HymieAgent
 
     public static class Args
     {
-        private Format format;
+        private Format format = Format.PLAIN;
         private Path file;
         private Duration dumpInterval;
 
@@ -418,7 +424,20 @@ public class HymieAgent
 
         public static enum Format
         {
-            PLAIN, JSON
+            PLAIN(new PlainTrafficReporter());
+            //TODO PLAIN_FORMATTED, JSON
+
+            private final TrafficReporter reporter;
+
+            private Format(TrafficReporter reporter)
+            {
+                this.reporter = reporter;
+            }
+
+            public TrafficReporter getReporter()
+            {
+                return reporter;
+            }
         }
     }
 }

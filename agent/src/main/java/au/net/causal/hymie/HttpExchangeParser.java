@@ -25,11 +25,10 @@ import org.apache.hc.core5.http.message.BasicLineParser;
 import org.apache.hc.core5.io.Closer;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -39,7 +38,7 @@ public class HttpExchangeParser
     private final ContentLengthStrategy contentLengthStrategy = new DefaultContentLengthStrategy();
     private final Http1Config http1Config = Http1Config.DEFAULT;
 
-    public Exchange parse(byte[] rawRequest, byte[] rawResponse)
+    public Exchange parse(SocketAddress address, byte[] rawRequest, byte[] rawResponse)
     throws IOException, HttpException
     {
         DefaultHttpRequestParser requestParser = new DefaultHttpRequestParser();
@@ -63,7 +62,7 @@ public class HttpExchangeParser
             receiveResponseEntity(response, responseBuf, is);
         }
 
-        return new Exchange(request, response);
+        return new Exchange(address, request, response);
     }
 
     private void receiveRequestEntity(final ClassicHttpRequest request, SessionInputBuffer inBuffer, InputStream is)
@@ -220,13 +219,20 @@ public class HttpExchangeParser
 
     public static class Exchange
     {
+        private final SocketAddress address;
         private final ClassicHttpRequest request;
         private final ClassicHttpResponse response;
 
-        public Exchange(ClassicHttpRequest request, ClassicHttpResponse response)
+        public Exchange(SocketAddress address, ClassicHttpRequest request, ClassicHttpResponse response)
         {
+            this.address = address;
             this.request = request;
             this.response = response;
+        }
+
+        public SocketAddress getAddress()
+        {
+            return address;
         }
 
         public ClassicHttpRequest getRequest()
@@ -237,54 +243,6 @@ public class HttpExchangeParser
         public ClassicHttpResponse getResponse()
         {
             return response;
-        }
-
-        @Override
-        public String toString()
-        {
-            StringBuilder buf = new StringBuilder();
-
-            buf.append("Request: ").append(getRequest()).append('\n');
-            for (Header header : getRequest().getHeaders())
-            {
-                buf.append(header);
-                buf.append('\n');
-            }
-            if (getRequest().getEntity() != null)
-            {
-                try (ByteArrayOutputStream body = new ByteArrayOutputStream())
-                {
-                    getRequest().getEntity().writeTo(body);
-                    String bodyString = body.toString(StandardCharsets.UTF_8);
-                    buf.append(bodyString);
-                    buf.append('\n');
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-            buf.append("Response: ").append(getResponse()).append('\n');
-            for (Header header : getResponse().getHeaders())
-            {
-                buf.append(header);
-                buf.append('\n');
-            }
-            if (getResponse().getEntity() != null)
-            {
-                try (ByteArrayOutputStream body = new ByteArrayOutputStream())
-                {
-                    getResponse().getEntity().writeTo(body);
-                    String bodyString = body.toString(StandardCharsets.UTF_8);
-                    buf.append(bodyString);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            return buf.toString();
         }
     }
 }

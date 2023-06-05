@@ -4,6 +4,7 @@ import org.apache.hc.core5.http.HttpException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.Writer;
 import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,18 +39,20 @@ public class TrafficRecorder
         return REGISTRATION_KEY;
     }
 
-    public String processAllTraffic()
+    public void processAllTraffic(TrafficReporter reporter, Writer out)
+    throws IOException
     {
-        return trafficMap.values().stream().map(this::processTraffic).collect(Collectors.joining(System.lineSeparator()));
+        List<HttpExchangeParser.Exchange> parsedTraffic = trafficMap.values().stream().filter(Objects::nonNull).map(this::parseTraffic).toList();
+        reporter.report(parsedTraffic, out);
     }
 
-    private String processTraffic(Traffic traffic)
+    private HttpExchangeParser.Exchange parseTraffic(Traffic traffic)
     {
         //Only process if we have a complete exchange
         if (traffic.inputData.isEmpty() || traffic.outputData.isEmpty())
         {
             //System.err.println("Traffic early exit");
-            return "";
+            return null;
         }
 
         try
@@ -66,13 +69,12 @@ public class TrafficRecorder
             }
 
             HttpExchangeParser parser = new HttpExchangeParser();
-            HttpExchangeParser.Exchange exchange = parser.parse(outbuf.toByteArray(), inbuf.toByteArray());
-            return traffic.address + " " + exchange;
+            return parser.parse(traffic.address, outbuf.toByteArray(), inbuf.toByteArray());
         }
         catch (IOException | HttpException e)
         {
             e.printStackTrace();
-            return "";
+            return null;
         }
     }
 
