@@ -83,7 +83,11 @@
                                 <relocation>
                                     <pattern>javassist</pattern>
                                     <shadedPattern>au.net.causal.hymie.shaded.javassist</shadedPattern>
-                                </relocation>                                
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.hc.core5</pattern>
+                                    <shadedPattern>au.net.causal.hymie.shaded.org.apache.hc.core5</shadedPattern>
+                                </relocation>
                             </relocations>
                         </configuration>
                     </execution>
