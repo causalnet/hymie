@@ -3,11 +3,13 @@ package au.net.causal.hymie.ui;
 import au.net.causal.hymie.HttpExchangeParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
@@ -21,6 +23,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TrafficPane extends JPanel
 {
@@ -29,7 +33,10 @@ public class TrafficPane extends JPanel
     private final JTable trafficTable;
     private TrafficTableModel trafficTableModel;
 
-    private final JTextArea trafficDetailsPane;
+    private final JTextArea requestHeadersPane;
+    private final JTextArea responseHeadersPane;
+    private final JTextArea requestBodyPane;
+    private final JTextArea responseBodyPane;
 
     public TrafficPane()
     {
@@ -39,12 +46,24 @@ public class TrafficPane extends JPanel
         trafficTable.getSelectionModel().addListSelectionListener(ev -> trafficTableSelectionUpdated());
         trafficTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        trafficDetailsPane = new JTextArea();
-        trafficDetailsPane.setEditable(false);
+        requestHeadersPane = new JTextArea();
+        requestHeadersPane.setEditable(false);
+        responseHeadersPane = new JTextArea();
+        responseHeadersPane.setEditable(false);
+        requestBodyPane = new JTextArea();
+        requestBodyPane.setEditable(false);
+        responseBodyPane = new JTextArea();
+        responseBodyPane.setEditable(false);
+
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.addTab("Request Headers", new JScrollPane(requestHeadersPane));
+        tabbedPane.addTab("Response Headers", new JScrollPane(responseHeadersPane));
+        tabbedPane.addTab("Request Body", new JScrollPane(requestBodyPane));
+        tabbedPane.addTab("Response Body", new JScrollPane(responseBodyPane));
 
         setLayout(new BorderLayout());
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, true,
-                new JScrollPane(trafficTable), new JScrollPane(trafficDetailsPane));
+                new JScrollPane(trafficTable), tabbedPane);
         add(splitPane, BorderLayout.CENTER);
     }
 
@@ -67,18 +86,28 @@ public class TrafficPane extends JPanel
     protected void trafficTableEntrySelected(TrafficTableModel.Entry entry)
     {
         if (entry == null)
+        {
             System.out.println("Selected: nothing");
+
+            requestBodyPane.setText("");
+            responseBodyPane.setText("");
+            requestHeadersPane.setText("");
+            responseBodyPane.setText("");
+        }
         else
+        {
             System.out.println("Selected: " + entry.getId() + ": " + entry.getPath());
 
-        trafficDetailsPane.setText("ID: " + entry.getId() + "\n" +
-                entry.getHttpMethod() + " " + entry.getPath() + "\n" +
-                "Request:\n" +
-                entry.getRequestContent() + "\n" +
-                "Response:\n" +
-                entry.getResponseContent() + "\n"
-        );
-        trafficDetailsPane.setCaretPosition(0); //scroll to top
+            requestBodyPane.setText(entry.getRequestContent());
+            responseBodyPane.setText(entry.getResponseContent());
+            requestHeadersPane.setText(Stream.of(entry.getExchange().getRequest().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
+            responseHeadersPane.setText(Stream.of(entry.getExchange().getResponse().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
+
+            requestBodyPane.setCaretPosition(0);
+            responseBodyPane.setCaretPosition(0);
+            requestHeadersPane.setCaretPosition(0);
+            responseHeadersPane.setCaretPosition(0);
+        }
     }
 
     private class TrafficTableModel extends AbstractTableModel
@@ -143,6 +172,11 @@ public class TrafficPane extends JPanel
             {
                 this.id = id;
                 this.exchange = exchange;
+            }
+
+            public HttpExchangeParser.Exchange getExchange()
+            {
+                return exchange;
             }
 
             public long getId()
