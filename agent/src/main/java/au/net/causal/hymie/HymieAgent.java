@@ -1,5 +1,6 @@
 package au.net.causal.hymie;
 
+import au.net.causal.hymie.json.JsonTrafficReporter;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtBehavior;
@@ -12,6 +13,7 @@ import javassist.expr.FieldAccess;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.lang.instrument.ClassFileTransformer;
@@ -25,6 +27,9 @@ import java.text.ParseException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 public class HymieAgent
@@ -61,10 +66,16 @@ public class HymieAgent
             dumpOut = () -> Files.newBufferedWriter(args.file, StandardOpenOption.APPEND);
         }
         else
-            dumpOut = () -> new PrintWriter(System.err);
+            dumpOut = () -> new CloseShieldedPrintWriter(System.err);
 
         HymieAgent agent = new HymieAgent(args);
         agent.run(inst);
+
+        if (args.dumpInterval != null)
+        {
+            ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+            scheduler.scheduleAtFixedRate(() -> agent.dumpSafely(dumpOut), 0L, args.dumpInterval.toMillis(), TimeUnit.MILLISECONDS);
+        }
 
         Runtime.getRuntime().addShutdownHook(new Thread(() ->
         {
@@ -425,8 +436,8 @@ public class HymieAgent
         public static enum Format
         {
             PLAIN(new PlainTrafficReporter()),
-            PLAIN_FORMATTED(new PlainFormattedTrafficReporter());
-            //TODO JSON
+            PLAIN_FORMATTED(new PlainFormattedTrafficReporter()),
+            JSON(new JsonTrafficReporter());
 
             private final TrafficReporter reporter;
 
@@ -439,6 +450,21 @@ public class HymieAgent
             {
                 return reporter;
             }
+        }
+    }
+
+    private static class CloseShieldedPrintWriter extends PrintWriter
+    {
+        public CloseShieldedPrintWriter(OutputStream out)
+        {
+            super(out);
+        }
+
+        @Override
+        public void close()
+        {
+            //Intentionally do nothing, but do a flush at least
+            flush();
         }
     }
 }

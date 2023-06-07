@@ -11,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 public class TrafficRecorder
 {
@@ -39,11 +38,23 @@ public class TrafficRecorder
         return REGISTRATION_KEY;
     }
 
-    public void processAllTraffic(TrafficReporter reporter, Writer out)
+    public synchronized void processAllTraffic(TrafficReporter reporter, Writer out)
     throws IOException
     {
-        List<HttpExchangeParser.Exchange> parsedTraffic = trafficMap.values().stream().filter(Objects::nonNull).map(this::parseTraffic).toList();
-        reporter.report(parsedTraffic, out);
+        List<HttpExchangeParser.Exchange> parsedTraffic = new ArrayList<>();
+        for (Iterator<Map.Entry<Long, Traffic>> iterator = trafficMap.entrySet().iterator(); iterator.hasNext(); )
+        {
+            var trafficEntry = iterator.next();
+            HttpExchangeParser.Exchange exchange = parseTraffic(trafficEntry.getValue());
+            if (exchange != null)
+            {
+                parsedTraffic.add(exchange);
+                iterator.remove();
+            }
+        }
+
+        if (!parsedTraffic.isEmpty())
+            reporter.report(parsedTraffic, out);
     }
 
     private HttpExchangeParser.Exchange parseTraffic(Traffic traffic)
