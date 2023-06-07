@@ -5,11 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
@@ -29,7 +29,7 @@ public class TrafficPane extends JPanel
     private final JTable trafficTable;
     private TrafficTableModel trafficTableModel;
 
-    private final JLabel trafficDetailsPane;
+    private final JTextArea trafficDetailsPane;
 
     public TrafficPane()
     {
@@ -39,7 +39,8 @@ public class TrafficPane extends JPanel
         trafficTable.getSelectionModel().addListSelectionListener(ev -> trafficTableSelectionUpdated());
         trafficTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        trafficDetailsPane = new JLabel("Details go here");
+        trafficDetailsPane = new JTextArea();
+        trafficDetailsPane.setEditable(false);
 
         setLayout(new BorderLayout());
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, true,
@@ -77,6 +78,7 @@ public class TrafficPane extends JPanel
                 "Response:\n" +
                 entry.getResponseContent() + "\n"
         );
+        trafficDetailsPane.setCaretPosition(0); //scroll to top
     }
 
     private class TrafficTableModel extends AbstractTableModel
