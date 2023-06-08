@@ -1,5 +1,6 @@
 package au.net.causal.hymie;
 
+import au.net.causal.hymie.formatter.HtmlMessageFormatter;
 import au.net.causal.hymie.formatter.JsonMessageFormatter;
 import au.net.causal.hymie.formatter.MessageFormatterRegistry;
 import au.net.causal.hymie.formatter.PlainMessageFormatter;
@@ -46,7 +47,8 @@ public class HymieAgent
 
     private static final MessageFormatterRegistry formatterRegistry = new MessageFormatterRegistry(
             List.of(
-                new JsonMessageFormatter()
+                new JsonMessageFormatter(),
+                new HtmlMessageFormatter()
             ),
             new PlainMessageFormatter()
     );

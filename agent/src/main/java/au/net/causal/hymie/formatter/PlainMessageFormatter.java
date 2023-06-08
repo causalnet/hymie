@@ -31,4 +31,10 @@ public class PlainMessageFormatter implements MessageFormatter
     {
         return true;
     }
+
+    @Override
+    public String getRSyntaxTextAreaStyle(ContentType contentType)
+    {
+        return null;
+    }
 }

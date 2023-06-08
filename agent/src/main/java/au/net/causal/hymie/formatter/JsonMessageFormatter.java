@@ -2,6 +2,7 @@ package au.net.causal.hymie.formatter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.core5.http.ContentType;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +22,11 @@ public class JsonMessageFormatter implements MessageFormatter
     public boolean supportsContentType(ContentType contentType)
     {
         return ContentType.APPLICATION_JSON.isSameMimeType(contentType);
+    }
 
+    @Override
+    public String getRSyntaxTextAreaStyle(ContentType contentType)
+    {
+        return SyntaxConstants.SYNTAX_STYLE_JSON;
     }
 }

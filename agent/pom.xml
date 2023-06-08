@@ -39,6 +39,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.fifesoft</groupId>
+            <artifactId>rsyntaxtextarea</artifactId>
+            <version>3.3.3</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
@@ -101,6 +107,10 @@
                                 <relocation>
                                     <pattern>com.fasterxml.jackson</pattern>
                                     <shadedPattern>au.net.causal.hymie.shaded.com.fasterxml.jackson</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.fife</pattern>
+                                    <shadedPattern>au.net.causal.hymie.shaded.org.fife</shadedPattern>
                                 </relocation>
 
                                 <!-- Dodgey, but need to get these out of there so they don't cause conflicts with real stuff the agent is running with -->

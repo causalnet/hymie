@@ -5,6 +5,8 @@ import au.net.causal.hymie.formatter.MessageFormatterRegistry;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rtextarea.RTextScrollPane;
 
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -34,8 +36,8 @@ public class TrafficPane extends JPanel
 
     private final JTextArea requestHeadersPane;
     private final JTextArea responseHeadersPane;
-    private final JTextArea requestBodyPane;
-    private final JTextArea responseBodyPane;
+    private final RSyntaxTextArea requestBodyPane;
+    private final RSyntaxTextArea responseBodyPane;
 
     public TrafficPane(MessageFormatterRegistry messageFormatterRegistry)
     {
@@ -52,16 +54,18 @@ public class TrafficPane extends JPanel
         requestHeadersPane.setEditable(false);
         responseHeadersPane = new JTextArea();
         responseHeadersPane.setEditable(false);
-        requestBodyPane = new JTextArea();
+        requestBodyPane = new RSyntaxTextArea();
         requestBodyPane.setEditable(false);
-        responseBodyPane = new JTextArea();
+        requestBodyPane.setCodeFoldingEnabled(true);
+        responseBodyPane = new RSyntaxTextArea();
         responseBodyPane.setEditable(false);
+        responseBodyPane.setCodeFoldingEnabled(true);
 
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Request Headers", new JScrollPane(requestHeadersPane));
         tabbedPane.addTab("Response Headers", new JScrollPane(responseHeadersPane));
-        tabbedPane.addTab("Request Body", new JScrollPane(requestBodyPane));
-        tabbedPane.addTab("Response Body", new JScrollPane(responseBodyPane));
+        tabbedPane.addTab("Request Body", new RTextScrollPane(requestBodyPane));
+        tabbedPane.addTab("Response Body", new RTextScrollPane(responseBodyPane));
 
         setLayout(new BorderLayout());
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, true,
@@ -90,14 +94,18 @@ public class TrafficPane extends JPanel
         if (entry == null)
         {
             requestBodyPane.setText("");
+            requestBodyPane.setSyntaxEditingStyle(null);
             responseBodyPane.setText("");
+            responseBodyPane.setSyntaxEditingStyle(null);
             requestHeadersPane.setText("");
             responseBodyPane.setText("");
         }
         else
         {
             requestBodyPane.setText(entry.getRequestContent());
+            requestBodyPane.setSyntaxEditingStyle(entry.getRequestSyntaxStyle());
             responseBodyPane.setText(entry.getResponseContent());
+            responseBodyPane.setSyntaxEditingStyle(entry.getResponseSyntaxStyle());
             requestHeadersPane.setText(Stream.of(entry.getExchange().getRequest().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
             responseHeadersPane.setText(Stream.of(entry.getExchange().getResponse().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
 
@@ -239,6 +247,16 @@ public class TrafficPane extends JPanel
                 return entityContent(exchange.getResponse().getEntity());
             }
 
+            public String getRequestSyntaxStyle()
+            {
+                return entitySyntaxStyle(exchange.getRequest().getEntity());
+            }
+
+            public String getResponseSyntaxStyle()
+            {
+                return entitySyntaxStyle(exchange.getResponse().getEntity());
+            }
+
             private long entitySize(HttpEntity entity)
             {
                 if (entity == null)
@@ -279,6 +297,15 @@ public class TrafficPane extends JPanel
                         return e.toString();
                     }
                 }
+            }
+
+            private String entitySyntaxStyle(HttpEntity entity)
+            {
+                if (entity == null)
+                    return null;
+
+                ContentType contentType = ContentType.parseLenient(entity.getContentType());
+                return messageFormatterRegistry.formatter(contentType).getRSyntaxTextAreaStyle(contentType);
             }
         }
     }
