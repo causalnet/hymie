@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.SocketAddress;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -38,7 +39,7 @@ public class HttpExchangeParser
     private final ContentLengthStrategy contentLengthStrategy = new DefaultContentLengthStrategy();
     private final Http1Config http1Config = Http1Config.DEFAULT;
 
-    public Exchange parse(SocketAddress address, byte[] rawRequest, byte[] rawResponse)
+    public Exchange parse(SocketAddress address, Instant fromTime, Instant toTime, byte[] rawRequest, byte[] rawResponse)
     throws IOException, HttpException
     {
         DefaultHttpRequestParser requestParser = new DefaultHttpRequestParser();
@@ -62,7 +63,7 @@ public class HttpExchangeParser
             receiveResponseEntity(response, responseBuf, is);
         }
 
-        return new Exchange(address, request, response);
+        return new Exchange(address, fromTime, toTime, request, response);
     }
 
     private void receiveRequestEntity(final ClassicHttpRequest request, SessionInputBuffer inBuffer, InputStream is)
@@ -220,12 +221,16 @@ public class HttpExchangeParser
     public static class Exchange
     {
         private final SocketAddress address;
+        private final Instant fromTime;
+        private final Instant toTime;
         private final ClassicHttpRequest request;
         private final ClassicHttpResponse response;
 
-        public Exchange(SocketAddress address, ClassicHttpRequest request, ClassicHttpResponse response)
+        public Exchange(SocketAddress address, Instant fromTime, Instant toTime, ClassicHttpRequest request, ClassicHttpResponse response)
         {
             this.address = address;
+            this.fromTime = fromTime;
+            this.toTime = toTime;
             this.request = request;
             this.response = response;
         }
@@ -233,6 +238,16 @@ public class HttpExchangeParser
         public SocketAddress getAddress()
         {
             return address;
+        }
+
+        public Instant getFromTime()
+        {
+            return fromTime;
+        }
+
+        public Instant getToTime()
+        {
+            return toTime;
         }
 
         public ClassicHttpRequest getRequest()

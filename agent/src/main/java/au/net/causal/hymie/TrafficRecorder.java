@@ -6,6 +6,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.SocketAddress;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -38,21 +40,28 @@ public class TrafficRecorder
         return REGISTRATION_KEY;
     }
 
-    public synchronized void processAllTraffic(TrafficReporter reporter, Writer out)
-    throws IOException
+    public Map<Long, HttpExchangeParser.Exchange> parseTraffic(boolean remove)
     {
-        List<HttpExchangeParser.Exchange> parsedTraffic = new ArrayList<>();
+        Map<Long, HttpExchangeParser.Exchange> parsedTraffic = new LinkedHashMap<>();
         for (Iterator<Map.Entry<Long, Traffic>> iterator = trafficMap.entrySet().iterator(); iterator.hasNext(); )
         {
             var trafficEntry = iterator.next();
             HttpExchangeParser.Exchange exchange = parseTraffic(trafficEntry.getValue());
             if (exchange != null)
             {
-                parsedTraffic.add(exchange);
-                iterator.remove();
+                parsedTraffic.put(trafficEntry.getKey(), exchange);
+                if (remove)
+                    iterator.remove();
             }
         }
 
+        return parsedTraffic;
+    }
+
+    public synchronized void processAllTraffic(TrafficReporter reporter, Writer out)
+    throws IOException
+    {
+        Collection<HttpExchangeParser.Exchange> parsedTraffic = parseTraffic(true).values();
         if (!parsedTraffic.isEmpty())
             reporter.report(parsedTraffic, out);
     }
@@ -80,7 +89,7 @@ public class TrafficRecorder
             }
 
             HttpExchangeParser parser = new HttpExchangeParser();
-            return parser.parse(traffic.address, outbuf.toByteArray(), inbuf.toByteArray());
+            return parser.parse(traffic.address, traffic.fromTime, traffic.toTime, outbuf.toByteArray(), inbuf.toByteArray());
         }
         catch (IOException | HttpException e)
         {
@@ -132,8 +141,8 @@ public class TrafficRecorder
             {
                 switch (realKey.io)
                 {
-                    case READ -> traffic.inputData.add(((byte[])data).clone()); //TODO clone needed?
-                    case WRITE -> traffic.outputData.add(((byte[])data).clone());
+                    case READ -> traffic.addInputData(((byte[])data).clone()); //TODO clone needed?
+                    case WRITE -> traffic.addOutputData(((byte[])data).clone());
                 }
 
                 //Logging
@@ -144,7 +153,11 @@ public class TrafficRecorder
 
     private static class Traffic
     {
+        private static final Clock clock = Clock.systemUTC();
+
         private SocketAddress address;
+        private final Instant fromTime;
+        private Instant toTime;
         private final String socketObjectClassName;
         private final List<byte[]> inputData = new CopyOnWriteArrayList<>();
         private final List<byte[]> outputData = new CopyOnWriteArrayList<>();
@@ -152,6 +165,19 @@ public class TrafficRecorder
         public Traffic(String socketObjectClassName)
         {
             this.socketObjectClassName = socketObjectClassName;
+            this.fromTime = Instant.now(clock);
+        }
+
+        public void addInputData(byte[] data)
+        {
+            inputData.add(data);
+            toTime = Instant.now(clock);
+        }
+
+        public void addOutputData(byte[] data)
+        {
+            outputData.add(data);
+            toTime = Instant.now(clock);
         }
     }
 

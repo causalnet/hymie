@@ -1,7 +1,7 @@
 package au.net.causal.hymie.ui;
 
 import au.net.causal.hymie.HttpExchangeParser;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import au.net.causal.hymie.formatter.MessageFormatterRegistry;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -17,10 +17,9 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.io.StringWriter;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,7 +27,7 @@ import java.util.stream.Stream;
 
 public class TrafficPane extends JPanel
 {
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final MessageFormatterRegistry messageFormatterRegistry;
 
     private final JTable trafficTable;
     private TrafficTableModel trafficTableModel;
@@ -38,13 +37,16 @@ public class TrafficPane extends JPanel
     private final JTextArea requestBodyPane;
     private final JTextArea responseBodyPane;
 
-    public TrafficPane()
+    public TrafficPane(MessageFormatterRegistry messageFormatterRegistry)
     {
         super(new BorderLayout());
+
+        this.messageFormatterRegistry = messageFormatterRegistry;
 
         trafficTable = new JTable();
         trafficTable.getSelectionModel().addListSelectionListener(ev -> trafficTableSelectionUpdated());
         trafficTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        trafficTable.setDefaultRenderer(Instant.class, new InstantTableCellRenderer());
 
         requestHeadersPane = new JTextArea();
         requestHeadersPane.setEditable(false);
@@ -67,7 +69,7 @@ public class TrafficPane extends JPanel
         add(splitPane, BorderLayout.CENTER);
     }
 
-    public void setTraffic(Map<Integer, ? extends HttpExchangeParser.Exchange> trafficMap)
+    public void setTraffic(Map<Long, ? extends HttpExchangeParser.Exchange> trafficMap)
     {
         //Update traffic table
         trafficTableModel = new TrafficTableModel(trafficMap);
@@ -87,8 +89,6 @@ public class TrafficPane extends JPanel
     {
         if (entry == null)
         {
-            System.out.println("Selected: nothing");
-
             requestBodyPane.setText("");
             responseBodyPane.setText("");
             requestHeadersPane.setText("");
@@ -96,8 +96,6 @@ public class TrafficPane extends JPanel
         }
         else
         {
-            System.out.println("Selected: " + entry.getId() + ": " + entry.getPath());
-
             requestBodyPane.setText(entry.getRequestContent());
             responseBodyPane.setText(entry.getResponseContent());
             requestHeadersPane.setText(Stream.of(entry.getExchange().getRequest().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
@@ -114,12 +112,12 @@ public class TrafficPane extends JPanel
     {
         //Columns: ID, timestamp, address, path, HTTP method, request byte count, response byte count
         private static final List<String> COLUMN_NAMES = List.of(
-                "ID", "Timestamp", "Address", "Path", "Method", "Request Size", "Response Size"
+                "ID", "Timestamp", "Duration", "Address", "Path", "Method", "Request Size", "Response Size"
         );
 
         private final List<Entry> trafficEntries;
 
-        public TrafficTableModel(Map<Integer, ? extends HttpExchangeParser.Exchange> trafficMap)
+        public TrafficTableModel(Map<Long, ? extends HttpExchangeParser.Exchange> trafficMap)
         {
             this.trafficEntries = trafficMap.entrySet().stream().map(e -> new Entry(e.getKey(), e.getValue())).toList();
         }
@@ -145,14 +143,16 @@ public class TrafficPane extends JPanel
         public Object getValueAt(int rowIndex, int columnIndex)
         {
             Entry entry = getRowAt(rowIndex);
-            return switch (columnIndex) {
+            return switch (columnIndex)
+            {
                 case 0 ->  entry.getId();
                 case 1 -> entry.getTimestamp();
-                case 2 -> entry.getAddress();
-                case 3 -> entry.getPath();
-                case 4 -> entry.getHttpMethod();
-                case 5 -> entry.getRequestSize();
-                case 6 -> entry.getResponseSize();
+                case 2 -> entry.getDuration();
+                case 3 -> entry.getAddress();
+                case 4 -> entry.getPath();
+                case 5 -> entry.getHttpMethod();
+                case 6 -> entry.getRequestSize();
+                case 7 -> entry.getResponseSize();
                 default -> null;
             };
         }
@@ -161,6 +161,16 @@ public class TrafficPane extends JPanel
         public String getColumnName(int column)
         {
             return COLUMN_NAMES.get(column);
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex)
+        {
+            return switch (columnIndex)
+            {
+                case 1 -> Instant.class;
+                default -> super.getColumnClass(columnIndex);
+            };
         }
 
         public class Entry
@@ -186,8 +196,12 @@ public class TrafficPane extends JPanel
 
             public Instant getTimestamp()
             {
-                //TODO
-                return LocalDateTime.of(1977, 9, 1, 12, 0).toInstant(ZoneOffset.UTC);
+                return exchange.getFromTime();
+            }
+
+            public Duration getDuration()
+            {
+                return Duration.between(exchange.getFromTime(), exchange.getToTime());
             }
 
             public String getAddress()
@@ -254,12 +268,10 @@ public class TrafficPane extends JPanel
                     {
                         ContentType contentType = ContentType.parseLenient(entity.getContentType());
 
-                        try (InputStream content = entity.getContent())
+                        try (InputStream content = entity.getContent(); StringWriter w = new StringWriter())
                         {
-                            if (ContentType.APPLICATION_JSON.isSameMimeType(contentType))
-                                return objectMapper.readTree(content).toPrettyString();
-                            else
-                                return new String(content.readAllBytes(), StandardCharsets.UTF_8);
+                            messageFormatterRegistry.formatter(contentType).format(contentType, content, w);
+                            return w.toString();
                         }
                     }
                     catch (IOException e)

@@ -1,6 +1,10 @@
 package au.net.causal.hymie;
 
+import au.net.causal.hymie.formatter.JsonMessageFormatter;
+import au.net.causal.hymie.formatter.MessageFormatterRegistry;
+import au.net.causal.hymie.formatter.PlainMessageFormatter;
 import au.net.causal.hymie.json.JsonTrafficReporter;
+import au.net.causal.hymie.ui.HymiePane;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtBehavior;
@@ -11,6 +15,8 @@ import javassist.NotFoundException;
 import javassist.expr.ExprEditor;
 import javassist.expr.FieldAccess;
 
+import javax.swing.JFrame;
+import java.awt.BorderLayout;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,6 +32,7 @@ import java.security.ProtectionDomain;
 import java.text.ParseException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,6 +43,13 @@ public class HymieAgent
 {
     private final Args args;
     private final TrafficRecorder trafficRecorder = new TrafficRecorder();
+
+    private static final MessageFormatterRegistry formatterRegistry = new MessageFormatterRegistry(
+            List.of(
+                new JsonMessageFormatter()
+            ),
+            new PlainMessageFormatter()
+    );
 
     public static void premain(String agentArgs, Instrumentation inst)
     {
@@ -71,16 +85,32 @@ public class HymieAgent
         HymieAgent agent = new HymieAgent(args);
         agent.run(inst);
 
-        if (args.dumpInterval != null)
+        switch (args.mode)
         {
-            ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-            scheduler.scheduleAtFixedRate(() -> agent.dumpSafely(dumpOut), 0L, args.dumpInterval.toMillis(), TimeUnit.MILLISECONDS);
-        }
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() ->
-        {
-            agent.dumpSafely(dumpOut);
-        }));
+            case DUMP ->
+            {
+                if (args.dumpInterval != null)
+                {
+                    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+                    scheduler.scheduleAtFixedRate(() -> agent.dumpSafely(dumpOut), 0L, args.dumpInterval.toMillis(), TimeUnit.MILLISECONDS);
+                }
+
+                Runtime.getRuntime().addShutdownHook(new Thread(() ->
+                {
+                    agent.dumpSafely(dumpOut);
+                }));
+            }
+            case UI ->
+            {
+                HymiePane pane = new HymiePane(agent.trafficRecorder, formatterRegistry);
+                JFrame frame = new JFrame("Hymie");
+                frame.add(pane, BorderLayout.CENTER);
+                frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                frame.setSize(1000, 1000);
+                frame.setVisible(true);
+            }
+        }
     }
 
     public HymieAgent(Args args)
@@ -399,6 +429,7 @@ public class HymieAgent
         private Format format = Format.PLAIN;
         private Path file;
         private Duration dumpInterval;
+        private Mode mode = Mode.DUMP;
 
         private Args()
         {
@@ -425,6 +456,7 @@ public class HymieAgent
                         case "format" -> args.format = Format.valueOf(value.toUpperCase(Locale.ROOT));
                         case "file" -> args.file = Path.of(value);
                         case "dumpInterval" -> args.dumpInterval = Duration.parse(value);
+                        case "mode" -> args.mode = Mode.valueOf(value.toUpperCase(Locale.ROOT));
                         default -> throw new ParseException("Unknown arg: " + key, 0);
                     }
                 }
@@ -450,6 +482,12 @@ public class HymieAgent
             {
                 return reporter;
             }
+        }
+
+        public static enum Mode
+        {
+            DUMP,
+            UI
         }
     }
 

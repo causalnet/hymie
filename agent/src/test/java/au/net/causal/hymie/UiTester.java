@@ -1,11 +1,15 @@
 package au.net.causal.hymie;
 
+import au.net.causal.hymie.formatter.MessageFormatterRegistry;
+import au.net.causal.hymie.formatter.PlainMessageFormatter;
 import au.net.causal.hymie.ui.TrafficPane;
 
 import javax.swing.JFrame;
 import java.awt.BorderLayout;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 class UiTester
@@ -67,10 +71,10 @@ a.closest("[data-ved]"))?D(f)||"":"";f=f||"";if(a.hasAttribute("jsname"))a=a.get
 """;
         HttpExchangeParser parser = new HttpExchangeParser();
 
-        var result = parser.parse(new InetSocketAddress("google.com", 443), requestString.getBytes(StandardCharsets.UTF_8), responseString.getBytes(StandardCharsets.UTF_8));
+        var result = parser.parse(new InetSocketAddress("google.com", 443), Instant.now(), Instant.now(), requestString.getBytes(StandardCharsets.UTF_8), responseString.getBytes(StandardCharsets.UTF_8));
 
-        TrafficPane pane = new TrafficPane();
-        pane.setTraffic(Map.of(1, result, 2, result, 3, result));
+        TrafficPane pane = new TrafficPane(new MessageFormatterRegistry(List.of(), new PlainMessageFormatter()));
+        pane.setTraffic(Map.of(1L, result, 2L, result, 3L, result));
 
         JFrame frame = new JFrame("Hymie UI Tester");
         frame.add(pane, BorderLayout.CENTER);
