@@ -120,7 +120,7 @@ public class TrafficPane extends JPanel
     {
         //Columns: ID, timestamp, address, path, HTTP method, request byte count, response byte count
         private static final List<String> COLUMN_NAMES = List.of(
-                "ID", "Timestamp", "Duration", "Address", "Path", "Method", "Request Size", "Response Size"
+                "ID", "Timestamp", "Duration", "Address", "Path", "Method", "Status", "Request Size", "Response Size"
         );
 
         private final List<Entry> trafficEntries;
@@ -159,8 +159,9 @@ public class TrafficPane extends JPanel
                 case 3 -> entry.getAddress();
                 case 4 -> entry.getPath();
                 case 5 -> entry.getHttpMethod();
-                case 6 -> entry.getRequestSize();
-                case 7 -> entry.getResponseSize();
+                case 6 -> entry.getResponseStatusCode();
+                case 7 -> entry.getRequestSize();
+                case 8 -> entry.getResponseSize();
                 default -> null;
             };
         }
@@ -225,6 +226,11 @@ public class TrafficPane extends JPanel
             public String getHttpMethod()
             {
                 return exchange.getRequest().getMethod();
+            }
+
+            public String getResponseStatusCode()
+            {
+                return String.valueOf(exchange.getResponse().getCode());
             }
 
             public long getRequestSize()
