@@ -15,7 +15,6 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
-import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static au.net.causal.hymie.ui.SimpleTableModel.Column.*;
 
 public class TrafficPane extends JPanel
 {
@@ -89,7 +90,7 @@ public class TrafficPane extends JPanel
             trafficTableEntrySelected(trafficTableModel.getRowAt(rowIndex));
     }
 
-    protected void trafficTableEntrySelected(TrafficTableModel.Entry entry)
+    protected void trafficTableEntrySelected(Entry entry)
     {
         if (entry == null)
         {
@@ -116,203 +117,156 @@ public class TrafficPane extends JPanel
         }
     }
 
-    private class TrafficTableModel extends AbstractTableModel
+    private class TrafficTableModel extends SimpleTableModel<Entry>
     {
-        //Columns: ID, timestamp, address, path, HTTP method, request byte count, response byte count
-        private static final List<String> COLUMN_NAMES = List.of(
-                "ID", "Timestamp", "Duration", "Address", "Path", "Method", "Status", "Request Size", "Response Size"
+        private static final List<Column<Entry, ?>> columns = List.of(
+            column("ID", Long.class, Entry::getId),
+            column("Timestamp", Instant.class, Entry::getTimestamp),
+            column("Duration", Duration.class, Entry::getDuration),
+            column("Address", Entry::getAddress),
+            column("Path", Entry::getPath),
+            column("Method", Entry::getHttpMethod),
+            column("Status", Entry::getResponseStatusCode),
+            column("Request Size", Long.class, Entry::getRequestSize),
+            column("Response Size", Long.class, Entry::getResponseSize)
         );
-
-        private final List<Entry> trafficEntries;
 
         public TrafficTableModel(Map<Long, ? extends HttpExchangeParser.Exchange> trafficMap)
         {
-            this.trafficEntries = trafficMap.entrySet().stream().map(e -> new Entry(e.getKey(), e.getValue())).toList();
+            super(columns, trafficMap.entrySet().stream().map(e -> new Entry(e.getKey(), e.getValue())).toList());
+        }
+    }
+
+    public class Entry
+    {
+        private final long id;
+        private final HttpExchangeParser.Exchange exchange;
+
+        public Entry(long id, HttpExchangeParser.Exchange exchange)
+        {
+            this.id = id;
+            this.exchange = exchange;
         }
 
-        @Override
-        public int getRowCount()
+        public HttpExchangeParser.Exchange getExchange()
         {
-           return trafficEntries.size();
+            return exchange;
         }
 
-        @Override
-        public int getColumnCount()
+        public long getId()
         {
-            return COLUMN_NAMES.size();
+            return id;
         }
 
-        public Entry getRowAt(int rowIndex)
+        public Instant getTimestamp()
         {
-            return trafficEntries.get(rowIndex);
+            return exchange.getFromTime();
         }
 
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex)
+        public Duration getDuration()
         {
-            Entry entry = getRowAt(rowIndex);
-            return switch (columnIndex)
-            {
-                case 0 ->  entry.getId();
-                case 1 -> entry.getTimestamp();
-                case 2 -> entry.getDuration();
-                case 3 -> entry.getAddress();
-                case 4 -> entry.getPath();
-                case 5 -> entry.getHttpMethod();
-                case 6 -> entry.getResponseStatusCode();
-                case 7 -> entry.getRequestSize();
-                case 8 -> entry.getResponseSize();
-                default -> null;
-            };
+            return Duration.between(exchange.getFromTime(), exchange.getToTime());
         }
 
-        @Override
-        public String getColumnName(int column)
+        public String getAddress()
         {
-            return COLUMN_NAMES.get(column);
+            return exchange.getAddress().toString();
         }
 
-        @Override
-        public Class<?> getColumnClass(int columnIndex)
+        public String getPath()
         {
-            return switch (columnIndex)
-            {
-                case 1 -> Instant.class;
-                default -> super.getColumnClass(columnIndex);
-            };
+            return exchange.getRequest().getPath();
         }
 
-        public class Entry
+        public String getHttpMethod()
         {
-            private final long id;
-            private final HttpExchangeParser.Exchange exchange;
+            return exchange.getRequest().getMethod();
+        }
 
-            public Entry(long id, HttpExchangeParser.Exchange exchange)
-            {
-                this.id = id;
-                this.exchange = exchange;
-            }
+        public String getResponseStatusCode()
+        {
+            return String.valueOf(exchange.getResponse().getCode());
+        }
 
-            public HttpExchangeParser.Exchange getExchange()
-            {
-                return exchange;
-            }
+        public long getRequestSize()
+        {
+            return entitySize(exchange.getRequest().getEntity());
+        }
 
-            public long getId()
-            {
-                return id;
-            }
+        public long getResponseSize()
+        {
+            return entitySize(exchange.getResponse().getEntity());
+        }
 
-            public Instant getTimestamp()
-            {
-                return exchange.getFromTime();
-            }
+        public String getRequestContent()
+        {
+            return entityContent(exchange.getRequest().getEntity());
+        }
 
-            public Duration getDuration()
-            {
-                return Duration.between(exchange.getFromTime(), exchange.getToTime());
-            }
+        public String getResponseContent()
+        {
+            return entityContent(exchange.getResponse().getEntity());
+        }
 
-            public String getAddress()
-            {
-                return exchange.getAddress().toString();
-            }
+        public String getRequestSyntaxStyle()
+        {
+            return entitySyntaxStyle(exchange.getRequest().getEntity());
+        }
 
-            public String getPath()
-            {
-                return exchange.getRequest().getPath();
-            }
+        public String getResponseSyntaxStyle()
+        {
+            return entitySyntaxStyle(exchange.getResponse().getEntity());
+        }
 
-            public String getHttpMethod()
+        private long entitySize(HttpEntity entity)
+        {
+            if (entity == null)
+                return 0L;
+            else if (entity.getContentLength() >= 0L)
+                return entity.getContentLength();
+            else
             {
-                return exchange.getRequest().getMethod();
-            }
-
-            public String getResponseStatusCode()
-            {
-                return String.valueOf(exchange.getResponse().getCode());
-            }
-
-            public long getRequestSize()
-            {
-                return entitySize(exchange.getRequest().getEntity());
-            }
-
-            public long getResponseSize()
-            {
-                return entitySize(exchange.getResponse().getEntity());
-            }
-
-            public String getRequestContent()
-            {
-                return entityContent(exchange.getRequest().getEntity());
-            }
-
-            public String getResponseContent()
-            {
-                return entityContent(exchange.getResponse().getEntity());
-            }
-
-            public String getRequestSyntaxStyle()
-            {
-                return entitySyntaxStyle(exchange.getRequest().getEntity());
-            }
-
-            public String getResponseSyntaxStyle()
-            {
-                return entitySyntaxStyle(exchange.getResponse().getEntity());
-            }
-
-            private long entitySize(HttpEntity entity)
-            {
-                if (entity == null)
+                try
+                {
+                    return entity.getContent().readAllBytes().length; //TODO inefficient
+                }
+                catch (IOException e)
+                {
                     return 0L;
-                else if (entity.getContentLength() >= 0L)
-                    return entity.getContentLength();
-                else
-                {
-                    try
-                    {
-                        return entity.getContent().readAllBytes().length; //TODO inefficient
-                    }
-                    catch (IOException e)
-                    {
-                        return 0L;
-                    }
                 }
             }
+        }
 
-            private String entityContent(HttpEntity entity)
+        private String entityContent(HttpEntity entity)
+        {
+            if (entity == null)
+                return "";
+            else
             {
-                if (entity == null)
-                    return "";
-                else
+                try
                 {
-                    try
-                    {
-                        ContentType contentType = ContentType.parseLenient(entity.getContentType());
+                    ContentType contentType = ContentType.parseLenient(entity.getContentType());
 
-                        try (InputStream content = entity.getContent(); StringWriter w = new StringWriter())
-                        {
-                            messageFormatterRegistry.formatter(contentType).format(contentType, content, w);
-                            return w.toString();
-                        }
-                    }
-                    catch (IOException e)
+                    try (InputStream content = entity.getContent(); StringWriter w = new StringWriter())
                     {
-                        return e.toString();
+                        messageFormatterRegistry.formatter(contentType).format(contentType, content, w);
+                        return w.toString();
                     }
                 }
+                catch (IOException e)
+                {
+                    return e.toString();
+                }
             }
+        }
 
-            private String entitySyntaxStyle(HttpEntity entity)
-            {
-                if (entity == null)
-                    return null;
+        private String entitySyntaxStyle(HttpEntity entity)
+        {
+            if (entity == null)
+                return null;
 
-                ContentType contentType = ContentType.parseLenient(entity.getContentType());
-                return messageFormatterRegistry.formatter(contentType).getRSyntaxTextAreaStyle(contentType);
-            }
+            ContentType contentType = ContentType.parseLenient(entity.getContentType());
+            return messageFormatterRegistry.formatter(contentType).getRSyntaxTextAreaStyle(contentType);
         }
     }
 }
