@@ -5,6 +5,8 @@ import au.net.causal.hymie.formatter.MessageFormatterRegistry;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.net.WWWFormCodec;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
@@ -19,6 +21,8 @@ import java.awt.BorderLayout;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -36,6 +40,7 @@ public class TrafficPane extends JPanel
     private final JTable trafficTable;
     private TrafficTableModel trafficTableModel;
 
+    private final JTextArea requestParametersPane;
     private final JTextArea requestHeadersPane;
     private final JTextArea responseHeadersPane;
     private final RSyntaxTextArea requestBodyPane;
@@ -52,6 +57,8 @@ public class TrafficPane extends JPanel
         trafficTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         trafficTable.setDefaultRenderer(Instant.class, new InstantTableCellRenderer());
 
+        requestParametersPane = new JTextArea();
+        requestParametersPane.setEditable(false);
         requestHeadersPane = new JTextArea();
         requestHeadersPane.setEditable(false);
         responseHeadersPane = new JTextArea();
@@ -66,6 +73,7 @@ public class TrafficPane extends JPanel
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Request Headers", new JScrollPane(requestHeadersPane));
         tabbedPane.addTab("Response Headers", new JScrollPane(responseHeadersPane));
+        tabbedPane.addTab("Request Parameters", new JScrollPane(requestParametersPane));
         tabbedPane.addTab("Request Body", new RTextScrollPane(requestBodyPane));
         tabbedPane.addTab("Response Body", new RTextScrollPane(responseBodyPane));
 
@@ -107,8 +115,9 @@ public class TrafficPane extends JPanel
             requestBodyPane.setSyntaxEditingStyle(null);
             responseBodyPane.setText("");
             responseBodyPane.setSyntaxEditingStyle(null);
+            requestParametersPane.setText("");
             requestHeadersPane.setText("");
-            responseBodyPane.setText("");
+            responseHeadersPane.setText("");
         }
         else
         {
@@ -116,6 +125,7 @@ public class TrafficPane extends JPanel
             requestBodyPane.setSyntaxEditingStyle(entry.getRequestSyntaxStyle());
             responseBodyPane.setText(entry.getResponseContent());
             responseBodyPane.setSyntaxEditingStyle(entry.getResponseSyntaxStyle());
+            requestParametersPane.setText(entry.getRequestUriParameters().stream().map(NameValuePair::toString).collect(Collectors.joining("\n")));
             requestHeadersPane.setText(Stream.of(entry.getExchange().getRequest().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
             responseHeadersPane.setText(Stream.of(entry.getExchange().getResponse().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
 
@@ -276,6 +286,22 @@ public class TrafficPane extends JPanel
 
             ContentType contentType = ContentType.parseLenient(entity.getContentType());
             return messageFormatterRegistry.formatter(contentType).getRSyntaxTextAreaStyle(contentType);
+        }
+
+        public List<NameValuePair> getRequestUriParameters()
+        {
+            try
+            {
+                List<NameValuePair> result = WWWFormCodec.parse(exchange.getRequest().getUri().getQuery(), StandardCharsets.UTF_8);
+                if (result == null)
+                    result = List.of();
+
+                return result;
+            }
+            catch (URISyntaxException e)
+            {
+                return List.of();
+            }
         }
     }
 }
