@@ -17,6 +17,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
+import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,7 +41,7 @@ public class TrafficPane extends JPanel
     private final JTable trafficTable;
     private TrafficTableModel trafficTableModel;
 
-    private final JTextArea requestParametersPane;
+    private final JTable requestParametersTable;
     private final JTextArea requestHeadersPane;
     private final JTextArea responseHeadersPane;
     private final RSyntaxTextArea requestBodyPane;
@@ -57,8 +58,8 @@ public class TrafficPane extends JPanel
         trafficTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         trafficTable.setDefaultRenderer(Instant.class, new InstantTableCellRenderer());
 
-        requestParametersPane = new JTextArea();
-        requestParametersPane.setEditable(false);
+        requestParametersTable = new JTable();
+        requestParametersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         requestHeadersPane = new JTextArea();
         requestHeadersPane.setEditable(false);
         responseHeadersPane = new JTextArea();
@@ -73,7 +74,7 @@ public class TrafficPane extends JPanel
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Request Headers", new JScrollPane(requestHeadersPane));
         tabbedPane.addTab("Response Headers", new JScrollPane(responseHeadersPane));
-        tabbedPane.addTab("Request Parameters", new JScrollPane(requestParametersPane));
+        tabbedPane.addTab("Request Parameters", new JScrollPane(requestParametersTable));
         tabbedPane.addTab("Request Body", new RTextScrollPane(requestBodyPane));
         tabbedPane.addTab("Response Body", new RTextScrollPane(responseBodyPane));
 
@@ -115,7 +116,7 @@ public class TrafficPane extends JPanel
             requestBodyPane.setSyntaxEditingStyle(null);
             responseBodyPane.setText("");
             responseBodyPane.setSyntaxEditingStyle(null);
-            requestParametersPane.setText("");
+            requestParametersTable.setModel(new DefaultTableModel());
             requestHeadersPane.setText("");
             responseHeadersPane.setText("");
         }
@@ -125,7 +126,7 @@ public class TrafficPane extends JPanel
             requestBodyPane.setSyntaxEditingStyle(entry.getRequestSyntaxStyle());
             responseBodyPane.setText(entry.getResponseContent());
             responseBodyPane.setSyntaxEditingStyle(entry.getResponseSyntaxStyle());
-            requestParametersPane.setText(entry.getRequestUriParameters().stream().map(NameValuePair::toString).collect(Collectors.joining("\n")));
+            requestParametersTable.setModel(new UriParameterTableModel(entry));
             requestHeadersPane.setText(Stream.of(entry.getExchange().getRequest().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
             responseHeadersPane.setText(Stream.of(entry.getExchange().getResponse().getHeaders()).map(Header::toString).collect(Collectors.joining("\n")));
 
@@ -153,6 +154,19 @@ public class TrafficPane extends JPanel
         public TrafficTableModel(Map<Long, ? extends HttpExchangeParser.Exchange> trafficMap)
         {
             super(columns, trafficMap.entrySet().stream().map(e -> new Entry(e.getKey(), e.getValue())).toList());
+        }
+    }
+
+    private static class UriParameterTableModel extends SimpleTableModel<NameValuePair>
+    {
+        private static final List<Column<NameValuePair, ?>> columns = List.of(
+            column("Name", NameValuePair::getName),
+            column("Value", NameValuePair::getValue)
+        );
+
+        public UriParameterTableModel(Entry entry)
+        {
+            super(columns, entry.getRequestUriParameters());
         }
     }
 
