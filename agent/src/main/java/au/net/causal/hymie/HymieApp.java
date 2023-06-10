@@ -1,7 +1,8 @@
 package au.net.causal.hymie;
 
 import com.sun.tools.attach.VirtualMachine;
-import com.sun.tools.attach.VirtualMachineDescriptor;
+
+import java.util.Comparator;
 
 public class HymieApp
 {
@@ -26,12 +27,37 @@ public class HymieApp
         System.out.println("Available VMs:");
 
         //Interface for using the attach API
-        for (VirtualMachineDescriptor vm : VirtualMachine.list())
+        VirtualMachine.list().stream().sorted(Comparator.comparing(vm -> parseLongOrZero(vm.id()))).forEach( vm ->
         {
             if (vm.id().equals(String.valueOf(currentPid)))
                 System.out.print("*");
 
-            System.out.println(vm.id() + ": " + vm.displayName());
+            String displayName = vm.displayName();
+            if (displayName == null || displayName.isEmpty())
+            {
+                try
+                {
+                    long pid = Long.parseLong(vm.id());
+                    displayName = ProcessHandle.of(pid).map(processHandle -> processHandle.info().command().orElse("")).orElse("");
+                }
+                catch (NumberFormatException e)
+                {
+                    displayName = "";
+                }
+            }
+            System.out.println(vm.id() + ": " + displayName);
+        });
+    }
+
+    private static long parseLongOrZero(String s)
+    {
+        try
+        {
+            return Long.parseLong(s);
+        }
+        catch (NumberFormatException e)
+        {
+            return 0L;
         }
     }
 
