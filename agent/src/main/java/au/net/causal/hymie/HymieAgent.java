@@ -55,6 +55,11 @@ public class HymieAgent
 
     public static void premain(String agentArgs, Instrumentation inst)
     {
+        agentmain(agentArgs, inst);
+    }
+
+    public static void agentmain(String agentArgs, Instrumentation inst)
+    {
         //Parse the args
         Args args;
         try

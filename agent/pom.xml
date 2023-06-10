@@ -69,6 +69,7 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
+                            <Main-Class>au.net.causal.hymie.HymieApp</Main-Class>
                             <Agent-Class>au.net.causal.hymie.HymieAgent</Agent-Class>
                             <Premain-Class>au.net.causal.hymie.HymieAgent</Premain-Class>
                             <Can-Redefine-Classes>true</Can-Redefine-Classes>
