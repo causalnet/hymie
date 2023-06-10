@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -79,6 +80,14 @@ public class TrafficPane extends JPanel
         //Update traffic table
         trafficTableModel = new TrafficTableModel(trafficMap);
         trafficTable.setModel(trafficTableModel);
+    }
+
+    public Set<Long> getTrafficIds()
+    {
+        return trafficTableModel.getRows()
+                                .stream()
+                                .map(Entry::getId)
+                                .collect(Collectors.toUnmodifiableSet());
     }
 
     private void trafficTableSelectionUpdated()

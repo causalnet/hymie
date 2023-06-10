@@ -32,6 +32,11 @@ public class SimpleTableModel<R> extends AbstractTableModel
         return rows.get(rowIndex);
     }
 
+    public List<R> getRows()
+    {
+        return rows;
+    }
+
     @Override
     public Object getValueAt(int rowIndex, int columnIndex)
     {

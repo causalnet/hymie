@@ -24,11 +24,18 @@ public class HymiePane extends JPanel
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         add(bottomPanel, BorderLayout.SOUTH);
         JButton reloadButton = new JButton("Reload");
+        JButton clearButton = new JButton("Clear");
         bottomPanel.add(reloadButton);
+        bottomPanel.add(clearButton);
         reloadButton.addActionListener(ev ->
         {
             Map<Long, HttpExchangeParser.Exchange> traffic = trafficRecorder.parseTraffic(false);
             trafficPane.setTraffic(traffic);
+        });
+        clearButton.addActionListener(ev ->
+        {
+            trafficRecorder.removeTrafficByIds(trafficPane.getTrafficIds());
+            trafficPane.setTraffic(Map.of());
         });
     }
 }

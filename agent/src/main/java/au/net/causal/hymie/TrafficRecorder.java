@@ -58,6 +58,11 @@ public class TrafficRecorder
         return parsedTraffic;
     }
 
+    public void removeTrafficByIds(Collection<Long> ids)
+    {
+        trafficMap.keySet().removeAll(ids);
+    }
+
     public synchronized void processAllTraffic(TrafficReporter reporter, Writer out)
     throws IOException
     {
