@@ -5,6 +5,7 @@ import org.apache.hc.core5.http.HttpException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Writer;
+import java.lang.ref.WeakReference;
 import java.net.SocketAddress;
 import java.time.Clock;
 import java.time.Instant;
@@ -194,13 +195,13 @@ public class TrafficRecorder
 
     private static class ExchangeKey
     {
+        private final WeakReference<Object> socketObject;
         //TODO need to be weak references, unless a subkey is a string or something
-        private final Object socketObject;
         private final List<Object> subKeys;
 
         public ExchangeKey(Object socketObject, List<Object> subKeys)
         {
-            this.socketObject = socketObject;
+            this.socketObject = new WeakReference<>(socketObject);
             this.subKeys = subKeys;
         }
 
@@ -210,20 +211,20 @@ public class TrafficRecorder
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ExchangeKey that = (ExchangeKey) o;
-            return Objects.equals(socketObject, that.socketObject) && Objects.equals(subKeys, that.subKeys);
+            return Objects.equals(socketObject.get(), that.socketObject.get()) && Objects.equals(subKeys, that.subKeys);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(socketObject, subKeys);
+            return Objects.hash(socketObject.get(), subKeys);
         }
 
         @Override
         public String toString()
         {
             return "ExchangeKey{" +
-                    "socketObject=" + socketObject +
+                    "socketObject=" + socketObject.get() +
                     ", subKeys=" + subKeys +
                     '}';
         }
