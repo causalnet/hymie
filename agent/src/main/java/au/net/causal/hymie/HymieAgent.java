@@ -361,7 +361,7 @@ public class HymieAgent
                 java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
                 Object[] key = new Object[] {"WRITE", $0};
                 c.accept(key, new java.net.InetSocketAddress($0.address, $0.port));
-                c.accept(key, java.util.Arrays.copyOfRange(b, length, offset + length));
+                c.accept(key, java.util.Arrays.copyOfRange(b, offset, offset + length));
             }
         """);
     }
