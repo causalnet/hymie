@@ -26,15 +26,18 @@ import java.io.Writer;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.lang.instrument.UnmodifiableClassException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.ProtectionDomain;
 import java.text.ParseException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -53,12 +56,35 @@ public class HymieAgent
             new PlainMessageFormatter()
     );
 
-    public static void premain(String agentArgs, Instrumentation inst)
+    public static void agentmain(String agentArgs, Instrumentation inst)
     {
-        agentmain(agentArgs, inst);
+        premain(agentArgs, inst);
+
+        Set<String> knownClassNames = Set.of(
+            "sun.nio.ch.NioSocketImpl",
+            "sun.security.ssl.SSLSocketImpl$AppInputStream",
+            "sun.security.ssl.SSLSocketImpl$AppOutputStream",
+            "org.springframework.http.client.reactive.ReactorClientHttpConnector",
+            "io.netty.handler.logging.LoggingHandler"
+        );
+        List<Class<?>> classesToRetransform = new ArrayList<>();
+        for (Class<?> loadedClass : inst.getAllLoadedClasses())
+        {
+            if (knownClassNames.contains(loadedClass.getName()))
+                classesToRetransform.add(loadedClass);
+        }
+
+        try
+        {
+            inst.retransformClasses(classesToRetransform.toArray(Class[]::new));
+        }
+        catch (UnmodifiableClassException e)
+        {
+            e.printStackTrace();
+        }
     }
 
-    public static void agentmain(String agentArgs, Instrumentation inst)
+    public static void premain(String agentArgs, Instrumentation inst)
     {
         //Parse the args
         Args args;
@@ -164,7 +190,8 @@ public class HymieAgent
                     if ("sun/nio/ch/NioSocketImpl".equals(className))
                     {
                         ClassPool classPool = new ClassPool(null);
-                        classPool.appendSystemPath();
+                        //classPool.appendSystemPath(); This one has problems is class context classloader is not set on the current thread
+                        classPool.appendClassPath(new LoaderClassPath(this.getClass().getClassLoader()));
                         classPool.appendClassPath(new LoaderClassPath(loader));
 
                         CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
@@ -181,7 +208,8 @@ public class HymieAgent
                     else if ("sun/security/ssl/SSLSocketImpl$AppInputStream".equals(className))
                     {
                         ClassPool classPool = new ClassPool(null);
-                        classPool.appendSystemPath();
+                        //classPool.appendSystemPath(); This one has problems is class context classloader is not set on the current thread
+                        classPool.appendClassPath(new LoaderClassPath(this.getClass().getClassLoader()));
                         classPool.appendClassPath(new LoaderClassPath(loader));
 
                         CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
@@ -196,7 +224,8 @@ public class HymieAgent
                     else if ("sun/security/ssl/SSLSocketImpl$AppOutputStream".equals(className))
                     {
                         ClassPool classPool = new ClassPool(null);
-                        classPool.appendSystemPath();
+                        //classPool.appendSystemPath(); This one has problems is class context classloader is not set on the current thread
+                        classPool.appendClassPath(new LoaderClassPath(this.getClass().getClassLoader()));
                         classPool.appendClassPath(new LoaderClassPath(loader));
 
                         CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
@@ -211,7 +240,8 @@ public class HymieAgent
                     else if ("org/springframework/http/client/reactive/ReactorClientHttpConnector".equals(className))
                     {
                         ClassPool classPool = new ClassPool(null);
-                        classPool.appendSystemPath();
+                        //classPool.appendSystemPath(); This one has problems is class context classloader is not set on the current thread
+                        classPool.appendClassPath(new LoaderClassPath(this.getClass().getClassLoader()));
                         classPool.appendClassPath(new LoaderClassPath(loader));
 
                         CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
@@ -233,7 +263,8 @@ public class HymieAgent
                     else if ("io/netty/handler/logging/LoggingHandler".equals(className))
                     {
                         ClassPool classPool = new ClassPool(null);
-                        classPool.appendSystemPath();
+                        //classPool.appendSystemPath(); This one has problems is class context classloader is not set on the current thread
+                        classPool.appendClassPath(new LoaderClassPath(this.getClass().getClassLoader()));
                         classPool.appendClassPath(new LoaderClassPath(loader));
 
                         CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
@@ -253,7 +284,7 @@ public class HymieAgent
                 }
                 return classfileBuffer;
             }
-        });
+        }, true);
     }
 
     private int parameterCount(CtBehavior method)
