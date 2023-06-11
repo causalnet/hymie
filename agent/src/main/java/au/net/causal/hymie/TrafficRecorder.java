@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class TrafficRecorder
 {
@@ -196,13 +197,12 @@ public class TrafficRecorder
     private static class ExchangeKey
     {
         private final WeakReference<Object> socketObject;
-        //TODO need to be weak references, unless a subkey is a string or something
         private final List<Object> subKeys;
 
         public ExchangeKey(Object socketObject, List<Object> subKeys)
         {
             this.socketObject = new WeakReference<>(socketObject);
-            this.subKeys = subKeys;
+            this.subKeys = subKeys.stream().map(ExchangeKey::weaklyReference).toList();
         }
 
         @Override
@@ -211,13 +211,34 @@ public class TrafficRecorder
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ExchangeKey that = (ExchangeKey) o;
-            return Objects.equals(socketObject.get(), that.socketObject.get()) && Objects.equals(subKeys, that.subKeys);
+            return Objects.equals(socketObject.get(), that.socketObject.get()) && Objects.equals(subKeysDereferenced(), that.subKeysDereferenced());
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(socketObject.get(), subKeys);
+            return Objects.hash(socketObject.get(), subKeysDereferenced());
+        }
+
+        private List<?> subKeysDereferenced()
+        {
+            return subKeys.stream().map(ExchangeKey::dereference).collect(Collectors.toList());
+        }
+
+        private static Object dereference(Object a)
+        {
+            if (a instanceof WeakReference<?>)
+                return ((WeakReference<?>)a).get();
+            else
+                return a;
+        }
+
+        private static Object weaklyReference(Object a)
+        {
+            if (a instanceof String || a instanceof Number || a instanceof Enum<?>) //String and numbers
+                return a;
+            else
+                return new WeakReference<>(a);
         }
 
         @Override
@@ -225,7 +246,7 @@ public class TrafficRecorder
         {
             return "ExchangeKey{" +
                     "socketObject=" + socketObject.get() +
-                    ", subKeys=" + subKeys +
+                    ", subKeys=" + subKeysDereferenced() +
                     '}';
         }
     }
