@@ -5,3 +5,4 @@
 /agent/hymie-agent.iml
 /integration-tests/target
 /integration-tests/spring/target
+/integration-tests/socket/target
