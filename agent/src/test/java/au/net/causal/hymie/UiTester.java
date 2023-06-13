@@ -10,7 +10,6 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 class UiTester
 {
@@ -71,10 +70,10 @@ a.closest("[data-ved]"))?D(f)||"":"";f=f||"";if(a.hasAttribute("jsname"))a=a.get
 """;
         HttpExchangeParser parser = new HttpExchangeParser();
 
-        var result = parser.parse(new InetSocketAddress("google.com", 443), Instant.now(), Instant.now(), requestString.getBytes(StandardCharsets.UTF_8), responseString.getBytes(StandardCharsets.UTF_8));
+        var result = parser.parse(0L, new InetSocketAddress("google.com", 443), Instant.now(), Instant.now(), requestString.getBytes(StandardCharsets.UTF_8), responseString.getBytes(StandardCharsets.UTF_8));
 
         TrafficPane pane = new TrafficPane(new MessageFormatterRegistry(List.of(), new PlainMessageFormatter()));
-        pane.setTraffic(Map.of(1L, result, 2L, result, 3L, result));
+        pane.setTraffic(List.of(result, result, result));
 
         JFrame frame = new JFrame("Hymie UI Tester");
         frame.add(pane, BorderLayout.CENTER);

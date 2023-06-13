@@ -66,7 +66,7 @@ a.closest("[data-ved]"))?D(f)||"":"";f=f||"";if(a.hasAttribute("jsname"))a=a.get
 """;
         HttpExchangeParser parser = new HttpExchangeParser();
 
-        var result = parser.parse(new InetSocketAddress("google.com", 443), Instant.now(), Instant.now(), requestString.getBytes(StandardCharsets.UTF_8), responseString.getBytes(StandardCharsets.UTF_8));
+        var result = parser.parse(0L, new InetSocketAddress("google.com", 443), Instant.now(), Instant.now(), requestString.getBytes(StandardCharsets.UTF_8), responseString.getBytes(StandardCharsets.UTF_8));
 
         System.out.println(result);
         System.out.println(result);

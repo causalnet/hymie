@@ -9,7 +9,13 @@ import java.lang.ref.WeakReference;
 import java.net.SocketAddress;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,19 +48,16 @@ public class TrafficRecorder
         return REGISTRATION_KEY;
     }
 
-    public Map<Long, HttpExchangeParser.Exchange> parseTraffic(boolean remove)
+    public Collection<HttpExchangeParser.Exchange> parseTraffic(boolean remove)
     {
-        Map<Long, HttpExchangeParser.Exchange> parsedTraffic = new LinkedHashMap<>();
+        List<HttpExchangeParser.Exchange> parsedTraffic = new ArrayList<>();
         for (Iterator<Map.Entry<Long, Traffic>> iterator = trafficMap.entrySet().iterator(); iterator.hasNext(); )
         {
             var trafficEntry = iterator.next();
-            HttpExchangeParser.Exchange exchange = parseTraffic(trafficEntry.getValue());
-            if (exchange != null)
-            {
-                parsedTraffic.put(trafficEntry.getKey(), exchange);
-                if (remove)
-                    iterator.remove();
-            }
+            List<HttpExchangeParser.Exchange> exchanges = parseTraffic(trafficEntry.getKey(), trafficEntry.getValue());
+            parsedTraffic.addAll(exchanges);
+            if (!exchanges.isEmpty() && remove)
+                iterator.remove();
         }
 
         return parsedTraffic;
@@ -68,41 +71,74 @@ public class TrafficRecorder
     public synchronized void processAllTraffic(TrafficReporter reporter, Writer out)
     throws IOException
     {
-        Collection<HttpExchangeParser.Exchange> parsedTraffic = parseTraffic(true).values();
+        Collection<HttpExchangeParser.Exchange> parsedTraffic = parseTraffic(true);
         if (!parsedTraffic.isEmpty())
             reporter.report(parsedTraffic, out);
     }
 
-    private HttpExchangeParser.Exchange parseTraffic(Traffic traffic)
+    private List<RawExchange> parseRawExchangesFromTraffic(Traffic traffic)
     {
-        //Only process if we have a complete exchange
-        if (traffic.inputData.isEmpty() || traffic.outputData.isEmpty())
-        {
-            //System.err.println("Traffic early exit");
-            return null;
-        }
+        //Read out/in/out/in/...
+        IO mode = IO.WRITE;
+
+        List<RawExchange> rawExchanges = new ArrayList<>();
+        ByteArrayOutputStream inbuf = new ByteArrayOutputStream();
+        ByteArrayOutputStream outbuf = new ByteArrayOutputStream();
 
         try
         {
-            ByteArrayOutputStream inbuf = new ByteArrayOutputStream();
-            ByteArrayOutputStream outbuf = new ByteArrayOutputStream();
-            for (byte[] data : traffic.outputData)
+            for (var fragment : traffic.fragments)
             {
-                outbuf.write(data);
-            }
-            for (byte[] data : traffic.inputData)
-            {
-                inbuf.write(data);
+                if (fragment.io != mode && inbuf.size() > 0 && outbuf.size() > 0)
+                {
+                    rawExchanges.add(new RawExchange(inbuf.toByteArray(), outbuf.toByteArray()));
+                    inbuf = new ByteArrayOutputStream();
+                    outbuf = new ByteArrayOutputStream();
+                }
+                mode = fragment.io;
+                switch (fragment.io)
+                {
+                    case READ -> inbuf.write(fragment.data);
+                    case WRITE -> outbuf.write(fragment.data);
+                }
             }
 
-            HttpExchangeParser parser = new HttpExchangeParser();
-            return parser.parse(traffic.address, traffic.fromTime, traffic.toTime, outbuf.toByteArray(), inbuf.toByteArray());
+            //Flush remaining record
+            if (inbuf.size() > 0 && outbuf.size() > 0)
+                rawExchanges.add(new RawExchange(inbuf.toByteArray(), outbuf.toByteArray()));
         }
-        catch (IOException | HttpException e)
+        catch (IOException e)
         {
             e.printStackTrace();
-            return null;
+            return List.of();
         }
+
+        return rawExchanges;
+    }
+
+    private List<HttpExchangeParser.Exchange> parseTraffic(long connectionId, Traffic traffic)
+    {
+        List<RawExchange> rawExchanges = parseRawExchangesFromTraffic(traffic);
+        List<HttpExchangeParser.Exchange> parsedExchanges = new ArrayList<>(rawExchanges.size());
+
+        //Now we have multiple raw exchanges
+        //Parse them
+        for (RawExchange rawExchange : rawExchanges)
+        {
+            HttpExchangeParser parser = new HttpExchangeParser();
+            try
+            {
+                HttpExchangeParser.Exchange parsed = parser.parse(connectionId, traffic.address, traffic.fromTime, traffic.toTime, rawExchange.outputData, rawExchange.inputData);
+                parsedExchanges.add(parsed);
+            }
+            catch (IOException | HttpException e)
+            {
+                e.printStackTrace();
+                //Ignore
+            }
+        }
+
+        return parsedExchanges;
     }
 
     public class IsolatedConsumer implements BiConsumer<Object, Object>
@@ -146,6 +182,7 @@ public class TrafficRecorder
                 traffic.address = (SocketAddress)data;
             else if (data instanceof byte[])
             {
+                //TODO write/read/write should be split to multiple exchanges
                 switch (realKey.io)
                 {
                     case READ -> traffic.addInputData(((byte[])data).clone()); //TODO clone needed?
@@ -166,8 +203,11 @@ public class TrafficRecorder
         private final Instant fromTime;
         private Instant toTime;
         private final String socketObjectClassName;
-        private final List<byte[]> inputData = new CopyOnWriteArrayList<>();
-        private final List<byte[]> outputData = new CopyOnWriteArrayList<>();
+
+        private final List<Fragment> fragments = new CopyOnWriteArrayList<>();
+
+        //private final List<byte[]> inputData = new CopyOnWriteArrayList<>();
+        //private final List<byte[]> outputData = new CopyOnWriteArrayList<>();
 
         public Traffic(String socketObjectClassName)
         {
@@ -177,14 +217,40 @@ public class TrafficRecorder
 
         public void addInputData(byte[] data)
         {
-            inputData.add(data);
+            //inputData.add(data);
+            fragments.add(new Fragment(IO.READ, data));
             toTime = Instant.now(clock);
         }
 
         public void addOutputData(byte[] data)
         {
-            outputData.add(data);
+            //outputData.add(data);
+            fragments.add(new Fragment(IO.WRITE, data));
             toTime = Instant.now(clock);
+        }
+    }
+
+    private static class Fragment
+    {
+        private final IO io;
+        private final byte[] data;
+
+        public Fragment(IO io, byte[] data)
+        {
+            this.io = io;
+            this.data = data;
+        }
+    }
+
+    private static class RawExchange
+    {
+        private final byte[] inputData;
+        private final byte[] outputData;
+
+        public RawExchange(byte[] inputData, byte[] outputData)
+        {
+            this.inputData = inputData;
+            this.outputData = outputData;
         }
     }
 

@@ -39,7 +39,7 @@ public class HttpExchangeParser
     private final ContentLengthStrategy contentLengthStrategy = new DefaultContentLengthStrategy();
     private final Http1Config http1Config = Http1Config.DEFAULT;
 
-    public Exchange parse(SocketAddress address, Instant fromTime, Instant toTime, byte[] rawRequest, byte[] rawResponse)
+    public Exchange parse(long connectionId, SocketAddress address, Instant fromTime, Instant toTime, byte[] rawRequest, byte[] rawResponse)
     throws IOException, HttpException
     {
         DefaultHttpRequestParser requestParser = new DefaultHttpRequestParser();
@@ -63,7 +63,7 @@ public class HttpExchangeParser
             receiveResponseEntity(response, responseBuf, is);
         }
 
-        return new Exchange(address, fromTime, toTime, request, response);
+        return new Exchange(connectionId, address, fromTime, toTime, request, response);
     }
 
     private void receiveRequestEntity(final ClassicHttpRequest request, SessionInputBuffer inBuffer, InputStream is)
@@ -220,19 +220,26 @@ public class HttpExchangeParser
 
     public static class Exchange
     {
+        private final long connectionId;
         private final SocketAddress address;
         private final Instant fromTime;
         private final Instant toTime;
         private final ClassicHttpRequest request;
         private final ClassicHttpResponse response;
 
-        public Exchange(SocketAddress address, Instant fromTime, Instant toTime, ClassicHttpRequest request, ClassicHttpResponse response)
+        public Exchange(long connectionId, SocketAddress address, Instant fromTime, Instant toTime, ClassicHttpRequest request, ClassicHttpResponse response)
         {
+            this.connectionId = connectionId;
             this.address = address;
             this.fromTime = fromTime;
             this.toTime = toTime;
             this.request = request;
             this.response = response;
+        }
+
+        public long getConnectionId()
+        {
+            return connectionId;
         }
 
         public SocketAddress getAddress()

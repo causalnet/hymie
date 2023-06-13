@@ -8,6 +8,8 @@ import javax.swing.JButton;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public class HymiePane extends JPanel
@@ -29,13 +31,13 @@ public class HymiePane extends JPanel
         bottomPanel.add(clearButton);
         reloadButton.addActionListener(ev ->
         {
-            Map<Long, HttpExchangeParser.Exchange> traffic = trafficRecorder.parseTraffic(false);
+            Collection<HttpExchangeParser.Exchange> traffic = trafficRecorder.parseTraffic(false);
             trafficPane.setTraffic(traffic);
         });
         clearButton.addActionListener(ev ->
         {
             trafficRecorder.removeTrafficByIds(trafficPane.getTrafficIds());
-            trafficPane.setTraffic(Map.of());
+            trafficPane.setTraffic(List.of());
         });
     }
 }

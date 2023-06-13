@@ -26,6 +26,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,10 +85,10 @@ public class TrafficPane extends JPanel
         add(splitPane, BorderLayout.CENTER);
     }
 
-    public void setTraffic(Map<Long, ? extends HttpExchangeParser.Exchange> trafficMap)
+    public void setTraffic(Collection<? extends HttpExchangeParser.Exchange> traffic)
     {
         //Update traffic table
-        trafficTableModel = new TrafficTableModel(trafficMap);
+        trafficTableModel = new TrafficTableModel(traffic);
         trafficTable.setModel(trafficTableModel);
     }
 
@@ -151,9 +152,9 @@ public class TrafficPane extends JPanel
             column("Response Size", Long.class, Entry::getResponseSize)
         );
 
-        public TrafficTableModel(Map<Long, ? extends HttpExchangeParser.Exchange> trafficMap)
+        public TrafficTableModel(Collection<? extends HttpExchangeParser.Exchange> traffic)
         {
-            super(columns, trafficMap.entrySet().stream().map(e -> new Entry(e.getKey(), e.getValue())).toList());
+            super(columns, traffic.stream().map(Entry::new).toList());
         }
     }
 
@@ -172,12 +173,10 @@ public class TrafficPane extends JPanel
 
     public class Entry
     {
-        private final long id;
         private final HttpExchangeParser.Exchange exchange;
 
-        public Entry(long id, HttpExchangeParser.Exchange exchange)
+        public Entry(HttpExchangeParser.Exchange exchange)
         {
-            this.id = id;
             this.exchange = exchange;
         }
 
@@ -188,7 +187,7 @@ public class TrafficPane extends JPanel
 
         public long getId()
         {
-            return id;
+            return exchange.getConnectionId();
         }
 
         public Instant getTimestamp()
