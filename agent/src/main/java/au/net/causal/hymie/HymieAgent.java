@@ -136,6 +136,12 @@ public class HymieAgent
             }
             case UI ->
             {
+                //If the user really wants a UI, do our best to disable headless mode
+                //IntelliJ/Spring can turn headless mode on in its runners
+                //If UI has already been initialized elsewhere and headless mode is active then this won't work, but try our best
+                if ("true".equals(System.getProperty("java.awt.headless")))
+                    System.setProperty("java.awt.headless", "false");
+
                 HymiePane pane = new HymiePane(agent.trafficRecorder, formatterRegistry);
                 JFrame frame = new JFrame("Hymie");
                 frame.add(pane, BorderLayout.CENTER);
