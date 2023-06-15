@@ -13,7 +13,9 @@
     <name>Hymie Integration Tests</name>
 
     <modules>
+        <module>base</module>
         <module>spring</module>
         <module>socket</module>
+        <module>sslsocket</module>
     </modules>
 </project>
