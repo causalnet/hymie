@@ -90,7 +90,7 @@ class NetworkExerciser
     @RestController
     public static class MyRestController
     {
-        @GetMapping("/hello")
+        @GetMapping(value = "/hello", produces = MediaType.TEXT_PLAIN_VALUE)
         public String hello()
         {
             return "Good morning, what will be for eating?";
