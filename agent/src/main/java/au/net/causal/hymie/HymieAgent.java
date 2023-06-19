@@ -18,6 +18,8 @@ import javassist.expr.FieldAccess;
 
 import javax.swing.JFrame;
 import java.awt.BorderLayout;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -116,7 +118,7 @@ public class HymieAgent
             dumpOut = () -> new CloseShieldedPrintWriter(System.err);
 
         HymieAgent agent = new HymieAgent(args);
-        agent.run(inst);
+        agent.run(inst, args.exitBlocking && args.mode == Args.Mode.UI);
 
         switch (args.mode)
         {
@@ -145,9 +147,23 @@ public class HymieAgent
                 HymiePane pane = new HymiePane(agent.trafficRecorder, formatterRegistry);
                 JFrame frame = new JFrame("Hymie");
                 frame.add(pane, BorderLayout.CENTER);
-                frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
                 frame.setSize(1000, 1000);
                 frame.setVisible(true);
+
+                if (args.exitBlocking)
+                    agent.trafficRecorder.blockOnJvmExit();
+
+                frame.addWindowListener(new WindowAdapter()
+                {
+                    @Override
+                    public void windowClosing(WindowEvent e)
+                    {
+                        if (args.exitBlocking)
+                            agent.trafficRecorder.unblockExit();
+
+                        frame.dispose();
+                    }
+                });
             }
         }
     }
@@ -179,7 +195,7 @@ public class HymieAgent
         }
     }
 
-    public void run(Instrumentation inst)
+    public void run(Instrumentation inst, boolean exitBlocking)
     {
         //Install our hacks into system properties
         trafficRecorder.register();
@@ -283,6 +299,21 @@ public class HymieAgent
                         classfileBuffer = ctClass.toBytecode();
                         ctClass.detach();
                     }
+                    else if (exitBlocking && "java/lang/Runtime".equals(className))
+                    {
+                        ClassPool classPool = new ClassPool(null);
+                        //classPool.appendSystemPath(); This one has problems is class context classloader is not set on the current thread
+                        classPool.appendClassPath(new LoaderClassPath(this.getClass().getClassLoader()));
+                        classPool.appendClassPath(new LoaderClassPath(loader));
+
+                        CtClass ctClass = classPool.makeClass(new ByteArrayInputStream(classfileBuffer));
+
+                        CtMethod exitMethod = ctClass.getDeclaredMethod("exit");
+                        transformRuntimeExitMethod(exitMethod);
+
+                        classfileBuffer = ctClass.toBytecode();
+                        ctClass.detach();
+                    }
                 }
                 catch (Throwable e)
                 {
@@ -291,6 +322,18 @@ public class HymieAgent
                 return classfileBuffer;
             }
         }, true);
+
+        if (exitBlocking)
+        {
+            try
+            {
+                inst.retransformClasses(Runtime.class);
+            }
+            catch (UnmodifiableClassException e)
+            {
+                e.printStackTrace();
+            }
+        }
     }
 
     private int parameterCount(CtBehavior method)
@@ -468,12 +511,22 @@ public class HymieAgent
         """);
     }
 
+    private void transformRuntimeExitMethod(CtMethod m)
+    throws CannotCompileException
+    {
+        m.insertBefore("""
+                java.util.function.BiConsumer c = (java.util.function.BiConsumer)System.getProperties().get("au.net.causal.hymie.TrafficRecorder");
+                c.accept(Runtime.getRuntime(), null);
+        """);
+    }
+
     public static class Args
     {
         private Format format = Format.PLAIN;
         private Path file;
         private Duration dumpInterval;
         private Mode mode = Mode.DUMP;
+        private boolean exitBlocking;
 
         private Args()
         {
@@ -501,6 +554,7 @@ public class HymieAgent
                         case "file" -> args.file = Path.of(value);
                         case "dumpInterval" -> args.dumpInterval = Duration.parse(value);
                         case "mode" -> args.mode = Mode.valueOf(value.toUpperCase(Locale.ROOT));
+                        case "exitBlocking" -> args.exitBlocking = Boolean.parseBoolean(value);
                         default -> throw new ParseException("Unknown arg: " + key, 0);
                     }
                 }

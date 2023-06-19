@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ public class TrafficRecorder
     private static final String REGISTRATION_KEY = "au.net.causal.hymie.TrafficRecorder";
 
     private final AtomicLong idCounter = new AtomicLong();
+    private CountDownLatch exitBlockingLatch = new CountDownLatch(0);
 
     /**
      * Keeps track of which socket object have which ID.  Does not prevent the network objects from being GCed.
@@ -141,6 +143,32 @@ public class TrafficRecorder
         return parsedExchanges;
     }
 
+    public void blockOnJvmExit()
+    {
+        exitBlockingLatch = new CountDownLatch(1);
+    }
+
+    public void unblockExit()
+    {
+        exitBlockingLatch.countDown();
+    }
+
+    private void handleRuntimeExit()
+    {
+        if (exitBlockingLatch.getCount() > 0L)
+            System.err.println("Runtime exit is waiting because Hymie UI is still showing...");
+
+        try
+        {
+
+            exitBlockingLatch.await();
+        }
+        catch (InterruptedException e)
+        {
+            //Interrupted, don't wait any more
+        }
+    }
+
     public class IsolatedConsumer implements BiConsumer<Object, Object>
     {
         private KeyIO lookUpRealKey(Object key)
@@ -170,6 +198,13 @@ public class TrafficRecorder
         @Override
         public void accept(Object key, Object data)
         {
+            //Special case handling Runtime itself for exit handling
+            if (key == Runtime.getRuntime())
+            {
+                handleRuntimeExit();
+                return;
+            }
+
             //System.err.println("Accepting data: " + Arrays.toString((Object[])key));
 
             KeyIO realKey = lookUpRealKey(key);
