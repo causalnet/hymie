@@ -3,6 +3,9 @@
 /agent/target
 /agent/dependency-reduced-pom.xml
 /agent/hymie-agent.iml
+/control-ui/target
+/control-ui/hymie-control-ui.iml
+/control-ui/dependency-reduced-pom.xml
 /integration-tests/target
 /integration-tests/spring/target
 /integration-tests/socket/target
