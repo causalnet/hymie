@@ -2,6 +2,7 @@ package au.net.causal.hymie.controlui;
 
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
+import dorkbox.systemTray.Entry;
 import dorkbox.systemTray.MenuItem;
 import dorkbox.systemTray.Separator;
 import dorkbox.systemTray.SystemTray;
@@ -16,7 +17,7 @@ import java.util.List;
 public class HymieControlUiApp
 {
     protected final SystemTray tray;
-    private final List<MenuItem> processItems = new ArrayList<>(); //Only access via lock
+    private final List<Entry> processItems = new ArrayList<>(); //Only access via lock
 
     public static void main(String... args)
     throws Exception
@@ -37,7 +38,6 @@ public class HymieControlUiApp
         tray.setTooltip("Hymie");
 
         //Set up menus
-        tray.getMenu().add(new Separator());
         tray.getMenu().add(new MenuItem("Refresh", e -> refreshProcesses()));
         tray.getMenu().add(new Separator());
         tray.getMenu().add(new MenuItem("Exit", e -> exitApp()));
@@ -59,13 +59,14 @@ public class HymieControlUiApp
         processItems.clear();
 
         //Create new items for processes
+        int index = 0;
         if (processes.isEmpty())
         {
             MenuItem noProcessesItem = new MenuItem("(no processes, refresh to detect)");
             noProcessesItem.setEnabled(false);
             noProcessesItem.setTooltip("Last updated: " + DateTimeFormatter.ofLocalizedDateTime(FormatStyle.LONG).format(ZonedDateTime.now()));
             processItems.add(noProcessesItem);
-            tray.getMenu().add(noProcessesItem, 0);
+            tray.getMenu().add(noProcessesItem, index++);
         }
         else
         {
@@ -73,9 +74,15 @@ public class HymieControlUiApp
             {
                 MenuItem curItem = new MenuItem(process.getName(), e -> attachProcess(process));
                 processItems.add(curItem);
-                tray.getMenu().add(curItem, 0);
+                tray.getMenu().add(curItem, index++);
             }
         }
+
+        //Inconsistent separator behaviour - on some platforms if separator is first item it is autoremoved so
+        //if we explicitly add/remove every refresh we get consistent behaviour across platforms
+        Separator sep = new Separator();
+        processItems.add(sep);
+        tray.getMenu().add(sep, index++);
     }
 
     private void attachProcess(Process process)
