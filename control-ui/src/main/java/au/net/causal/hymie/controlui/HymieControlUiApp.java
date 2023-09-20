@@ -1,5 +1,6 @@
 package au.net.causal.hymie.controlui;
 
+import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
 import dorkbox.systemTray.Entry;
@@ -8,11 +9,15 @@ import dorkbox.systemTray.Separator;
 import dorkbox.systemTray.SystemTray;
 
 import javax.swing.UIManager;
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Properties;
 
 public class HymieControlUiApp
 {
@@ -48,8 +53,34 @@ public class HymieControlUiApp
 
     private void refreshProcesses()
     {
-        List<Process> vmList = VirtualMachine.list().stream().map(Process::new).toList();
-        updateProcesses(vmList);
+        List<VirtualMachineDescriptor> vmList = VirtualMachine.list();
+        List<Process> processList = new ArrayList<>(vmList.size());
+
+        for (VirtualMachineDescriptor vmd : vmList)
+        {
+            Properties systemProperties;
+            try
+            {
+                VirtualMachine vm = VirtualMachine.attach(vmd);
+                try
+                {
+                    systemProperties = vm.getSystemProperties();
+                }
+                finally
+                {
+                    vm.detach();
+                }
+            }
+            catch (AttachNotSupportedException | IOException e)
+            {
+                e.printStackTrace();
+                systemProperties = new Properties();
+            }
+
+            processList.add(new Process(vmd, systemProperties));
+        }
+
+        updateProcesses(processList);
     }
 
     private synchronized void updateProcesses(List<Process> processes)
@@ -70,9 +101,11 @@ public class HymieControlUiApp
         }
         else
         {
-            for (Process process : processes)
+            List<Process> sortedProcesses = processes.stream().sorted(Comparator.comparing(Process::getNumericId).thenComparing(Process::getId)).toList();
+            for (Process process : sortedProcesses)
             {
-                MenuItem curItem = new MenuItem(process.getName(), e -> attachProcess(process));
+                MenuItem curItem = createProcessMenuItem(process);
+                curItem.setCallback(e -> attachProcess(process));
                 processItems.add(curItem);
                 tray.getMenu().add(curItem, index++);
             }
@@ -83,6 +116,23 @@ public class HymieControlUiApp
         Separator sep = new Separator();
         processItems.add(sep);
         tray.getMenu().add(sep, index++);
+    }
+
+    private MenuItem createProcessMenuItem(Process process)
+    {
+        //Derive the name
+        String name = process.getName();
+
+        String sunJavaCommand = process.getSystemProperties().getProperty("sun.java.command");
+        if (sunJavaCommand != null)
+        {
+            //Use the first token on the command line
+            String firstToken = Arrays.stream(sunJavaCommand.split("\\s+", 2)).findFirst().orElse(null);
+            if (firstToken != null)
+                name = firstToken;
+        }
+
+        return new MenuItem(process.getId() + " " + name);
     }
 
     private void attachProcess(Process process)
@@ -100,15 +150,46 @@ public class HymieControlUiApp
     private static class Process
     {
         private final VirtualMachineDescriptor vmDescriptor;
+        private final Properties systemProperties;
+        private final Long numericId;
 
-        public Process(VirtualMachineDescriptor vmDescriptor)
+        public Process(VirtualMachineDescriptor vmDescriptor, Properties systemProperties)
         {
             this.vmDescriptor = vmDescriptor;
+            this.systemProperties = systemProperties;
+            this.numericId = parseLongOrNull(vmDescriptor.id());
+        }
+
+        private static Long parseLongOrNull(String s)
+        {
+            try
+            {
+                return Long.parseLong(s);
+            }
+            catch (NumberFormatException e)
+            {
+                return null;
+            }
+        }
+
+        public String getId()
+        {
+            return vmDescriptor.id();
+        }
+
+        public Long getNumericId()
+        {
+            return numericId;
         }
 
         public String getName()
         {
-            return vmDescriptor.toString();
+            return vmDescriptor.displayName();
+        }
+
+        public Properties getSystemProperties()
+        {
+            return systemProperties;
         }
     }
 }
