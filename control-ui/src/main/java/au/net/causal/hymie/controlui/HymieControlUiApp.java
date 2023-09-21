@@ -1,5 +1,7 @@
 package au.net.causal.hymie.controlui;
 
+import com.sun.tools.attach.AgentInitializationException;
+import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
@@ -8,8 +10,14 @@ import dorkbox.systemTray.MenuItem;
 import dorkbox.systemTray.Separator;
 import dorkbox.systemTray.SystemTray;
 
+import javax.swing.JOptionPane;
 import javax.swing.UIManager;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -23,6 +31,8 @@ public class HymieControlUiApp
 {
     protected final SystemTray tray;
     private final List<Entry> processItems = new ArrayList<>(); //Only access via lock
+
+    private Path hymieAgentJarFile;
 
     public static void main(String... args)
     throws Exception
@@ -139,7 +149,64 @@ public class HymieControlUiApp
     {
         System.out.println("Want to attach to: " + process.vmDescriptor);
 
-        //TODO
+        //TODO need to prevent double-attach
+
+        //Extract Hymie JAR to temporary file
+        VirtualMachine vm;
+        try
+        {
+            vm = VirtualMachine.attach(process.vmDescriptor);
+        }
+        catch (IOException | AttachNotSupportedException e)
+        {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error attaching to process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try
+        {
+            Path agentJarFile = getHymieAgentJarFile();
+            System.out.println("Will attach agent " + agentJarFile);
+            String agentOptions = "mode=ui";
+            vm.loadAgent(agentJarFile.toAbsolutePath().toString(), agentOptions);
+        }
+        catch (IOException | AgentLoadException | AgentInitializationException e)
+        {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error loading agent into process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private synchronized Path getHymieAgentJarFile()
+    throws IOException
+    {
+        if (hymieAgentJarFile != null && Files.exists(hymieAgentJarFile))
+            return hymieAgentJarFile;
+
+        //Does not already exist, extract
+        hymieAgentJarFile = extractHymieAgentJarFile();
+        hymieAgentJarFile.toFile().deleteOnExit();
+
+        return hymieAgentJarFile;
+    }
+
+    private Path extractHymieAgentJarFile()
+    throws IOException
+    {
+        URL agentJarResource = HymieControlUiApp.class.getResource("/hymie-agent/hymie-agent.jar");
+        if (agentJarResource == null)
+            throw new IOException("Missing agent JAR resource /hymie-agent/hymie-agent.jar.");
+
+
+        Path agentJarFile = Files.createTempFile("hymie-agent", ".jar");
+
+        try (InputStream is = agentJarResource.openStream())
+        {
+            Files.copy(is, agentJarFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        return agentJarFile;
     }
 
     private void exitApp()
