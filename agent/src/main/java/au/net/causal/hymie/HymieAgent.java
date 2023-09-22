@@ -197,6 +197,9 @@ public class HymieAgent
 
     public void run(Instrumentation inst, boolean exitBlocking)
     {
+        //Set a system property that records that Hymie agent is loaded
+        System.setProperty("au.net.causal.hymie.HymieAgent.loaded", "true");
+
         //Install our hacks into system properties
         trafficRecorder.register();
 

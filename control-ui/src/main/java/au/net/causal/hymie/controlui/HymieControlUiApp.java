@@ -115,7 +115,7 @@ public class HymieControlUiApp
             for (Process process : sortedProcesses)
             {
                 MenuItem curItem = createProcessMenuItem(process);
-                curItem.setCallback(e -> attachProcess(process));
+                curItem.setCallback(e -> attachProcess(process, curItem));
                 processItems.add(curItem);
                 tray.getMenu().add(curItem, index++);
             }
@@ -142,39 +142,52 @@ public class HymieControlUiApp
                 name = firstToken;
         }
 
-        return new MenuItem(process.getId() + " " + name);
+        MenuItem menuItem = new MenuItem(process.getId() + " " + name);
+
+        if (process.isHymieAttached())
+            menuItem.setEnabled(false);
+
+        return menuItem;
     }
 
-    private void attachProcess(Process process)
+    private void attachProcess(Process process, MenuItem processItem)
     {
-        System.out.println("Want to attach to: " + process.vmDescriptor);
+        if (process.isHymieAttached())
+            System.err.println("Hymie already attached, not doing again.");
+        else
+        {
+            System.out.println("Want to attach to: " + process.vmDescriptor);
 
-        //TODO need to prevent double-attach
+            //TODO need to prevent double-attach - can detect existing property
 
-        //Extract Hymie JAR to temporary file
-        VirtualMachine vm;
-        try
-        {
-            vm = VirtualMachine.attach(process.vmDescriptor);
-        }
-        catch (IOException | AttachNotSupportedException e)
-        {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error attaching to process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+            //Extract Hymie JAR to temporary file
+            VirtualMachine vm;
+            try
+            {
+                vm = VirtualMachine.attach(process.vmDescriptor);
+            }
+            catch (IOException | AttachNotSupportedException e)
+            {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Error attaching to process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-        try
-        {
-            Path agentJarFile = getHymieAgentJarFile();
-            System.out.println("Will attach agent " + agentJarFile);
-            String agentOptions = "mode=ui";
-            vm.loadAgent(agentJarFile.toAbsolutePath().toString(), agentOptions);
-        }
-        catch (IOException | AgentLoadException | AgentInitializationException e)
-        {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error loading agent into process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
+            try
+            {
+                Path agentJarFile = getHymieAgentJarFile();
+                System.out.println("Will attach agent " + agentJarFile);
+                String agentOptions = "mode=ui";
+                vm.loadAgent(agentJarFile.toAbsolutePath().toString(), agentOptions);
+            }
+            catch (IOException | AgentLoadException | AgentInitializationException e)
+            {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Error loading agent into process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            processItem.setEnabled(false);
         }
     }
 
@@ -257,6 +270,11 @@ public class HymieControlUiApp
         public Properties getSystemProperties()
         {
             return systemProperties;
+        }
+
+        public boolean isHymieAttached()
+        {
+            return getSystemProperties().containsKey("au.net.causal.hymie.HymieAgent.loaded");
         }
     }
 }
