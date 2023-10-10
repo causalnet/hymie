@@ -9,9 +9,12 @@ import dorkbox.systemTray.Entry;
 import dorkbox.systemTray.MenuItem;
 import dorkbox.systemTray.Separator;
 import dorkbox.systemTray.SystemTray;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.JOptionPane;
 import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -25,22 +28,23 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 
 public class HymieControlUiApp
 {
+    private static final Logger log = LoggerFactory.getLogger(HymieControlUiApp.class);
+
     protected final SystemTray tray;
     private final List<Entry> processItems = new ArrayList<>(); //Only access via lock
+    private final MenuItem refreshMenuItem;
 
     private Path hymieAgentJarFile;
 
-    public static void main(String... args)
-    throws Exception
-    {
-        //Just in case the menu UI uses Swing
-        //TODO can we detect whether this is needed?
-        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+    //TODO include/exclude patterns on command line
 
+    public static void main(String... args)
+    {
         //SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
 
         new HymieControlUiApp();
@@ -49,11 +53,26 @@ public class HymieControlUiApp
     public HymieControlUiApp()
     {
         tray = SystemTray.get();
-        tray.setImage(HymieControlUiApp.class.getResource("/galah.png"));
+        tray.setImage(Objects.requireNonNull(HymieControlUiApp.class.getResource("/galah.png")));
         tray.setTooltip("Hymie");
 
+        //If this is a Swing menu, configure Swing's look and feel to look native
+        //Otherwise you get the default metal which is yuck
+        if (SystemTray.SWING_UI != null)
+        {
+            try
+            {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            }
+            catch (UnsupportedLookAndFeelException | ClassNotFoundException | InstantiationException | IllegalAccessException e)
+            {
+                log.error("Error setting system look and feel for Swing, menu might look ugly!", e);
+            }
+        }
+
         //Set up menus
-        tray.getMenu().add(new MenuItem("Refresh", e -> refreshProcesses()));
+        refreshMenuItem = new MenuItem("Refresh", e -> refreshProcesses());
+        tray.getMenu().add(refreshMenuItem);
         tray.getMenu().add(new Separator());
         tray.getMenu().add(new MenuItem("Exit", e -> exitApp()));
 
@@ -66,28 +85,35 @@ public class HymieControlUiApp
         List<VirtualMachineDescriptor> vmList = VirtualMachine.list();
         List<Process> processList = new ArrayList<>(vmList.size());
 
+        String ourProcessId = String.valueOf(ProcessHandle.current().pid());
+
         for (VirtualMachineDescriptor vmd : vmList)
         {
-            Properties systemProperties;
-            try
+            //Do not put the current process into the list
+            if (!ourProcessId.equals(vmd.id()))
             {
-                VirtualMachine vm = VirtualMachine.attach(vmd);
+                Properties systemProperties;
+
                 try
                 {
-                    systemProperties = vm.getSystemProperties();
+                    VirtualMachine vm = VirtualMachine.attach(vmd);
+                    try
+                    {
+                        systemProperties = vm.getSystemProperties();
+                    }
+                    finally
+                    {
+                        vm.detach();
+                    }
                 }
-                finally
+                catch (AttachNotSupportedException | IOException e)
                 {
-                    vm.detach();
+                    log.warn("Failed to attach to process " + vmd.displayName() + ": " + e, e);
+                    systemProperties = new Properties();
                 }
-            }
-            catch (AttachNotSupportedException | IOException e)
-            {
-                e.printStackTrace();
-                systemProperties = new Properties();
-            }
 
-            processList.add(new Process(vmd, systemProperties));
+                processList.add(new Process(vmd, systemProperties));
+            }
         }
 
         updateProcesses(processList);
@@ -105,7 +131,7 @@ public class HymieControlUiApp
         {
             MenuItem noProcessesItem = new MenuItem("(no processes, refresh to detect)");
             noProcessesItem.setEnabled(false);
-            noProcessesItem.setTooltip("Last updated: " + DateTimeFormatter.ofLocalizedDateTime(FormatStyle.LONG).format(ZonedDateTime.now()));
+            //noProcessesItem.setTooltip("Last updated: " + DateTimeFormatter.ofLocalizedDateTime(FormatStyle.LONG).format(ZonedDateTime.now()));
             processItems.add(noProcessesItem);
             tray.getMenu().add(noProcessesItem, index++);
         }
@@ -126,6 +152,9 @@ public class HymieControlUiApp
         Separator sep = new Separator();
         processItems.add(sep);
         tray.getMenu().add(sep, index++);
+
+        //Update refresh time
+        refreshMenuItem.setTooltip("Last updated: " + DateTimeFormatter.ofLocalizedDateTime(FormatStyle.LONG).format(ZonedDateTime.now()));
     }
 
     private MenuItem createProcessMenuItem(Process process)
@@ -153,12 +182,10 @@ public class HymieControlUiApp
     private void attachProcess(Process process, MenuItem processItem)
     {
         if (process.isHymieAttached())
-            System.err.println("Hymie already attached, not doing again.");
+            log.warn("Hymie already attached, not doing again.");
         else
         {
-            System.out.println("Want to attach to: " + process.vmDescriptor);
-
-            //TODO need to prevent double-attach - can detect existing property
+            log.info("Want to attach to: " + process.vmDescriptor);
 
             //Extract Hymie JAR to temporary file
             VirtualMachine vm;
@@ -168,7 +195,7 @@ public class HymieControlUiApp
             }
             catch (IOException | AttachNotSupportedException e)
             {
-                e.printStackTrace();
+                log.warn("Failed to attach to process " + process.vmDescriptor + ": " + e, e);
                 JOptionPane.showMessageDialog(null, "Error attaching to process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -176,13 +203,13 @@ public class HymieControlUiApp
             try
             {
                 Path agentJarFile = getHymieAgentJarFile();
-                System.out.println("Will attach agent " + agentJarFile);
+                log.info("Will attach agent " + agentJarFile);
                 String agentOptions = "mode=ui";
                 vm.loadAgent(agentJarFile.toAbsolutePath().toString(), agentOptions);
             }
             catch (IOException | AgentLoadException | AgentInitializationException e)
             {
-                e.printStackTrace();
+                log.error("Error loading agent into process: " + e, e);
                 JOptionPane.showMessageDialog(null, "Error loading agent into process: " + e, "Hymie", JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -210,7 +237,6 @@ public class HymieControlUiApp
         URL agentJarResource = HymieControlUiApp.class.getResource("/hymie-agent/hymie-agent.jar");
         if (agentJarResource == null)
             throw new IOException("Missing agent JAR resource /hymie-agent/hymie-agent.jar.");
-
 
         Path agentJarFile = Files.createTempFile("hymie-agent", ".jar");
 
