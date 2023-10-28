@@ -13,6 +13,10 @@
 
     <name>Hymie Control UI</name>
 
+    <properties>
+        <picocli.version>4.7.5</picocli.version>
+    </properties>
+
     <dependencies>
         <!-- For Maven build ordering only, we package this JAR inside our JAR -->
         <dependency>
@@ -20,6 +24,12 @@
             <artifactId>hymie-agent</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>${picocli.version}</version>
         </dependency>
 
         <dependency>
@@ -54,6 +64,22 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>info.picocli</groupId>
+                            <artifactId>picocli-codegen</artifactId>
+                            <version>${picocli.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-Aproject=${project.groupId}/${project.artifactId}</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>3.6.0</version>
                 <executions>
@@ -83,9 +109,10 @@
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
-                        <manifestEntries>
-                            <Main-Class>au.net.causal.hymie.controlui.HymieControlUiApp</Main-Class>
-                        </manifestEntries>
+                        <manifest>
+                            <mainClass>au.net.causal.hymie.controlui.HymieControlUiApp</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
                     </archive>
                 </configuration>
             </plugin>
