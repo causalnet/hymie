@@ -47,7 +47,7 @@ public class HymieControlUi
 
     public HymieControlUi()
     {
-        tray = SystemTray.get();
+        tray = SystemTray.get("Hymie");
         tray.setImage(Objects.requireNonNull(HymieControlUi.class.getResource("/galah.png")));
         tray.setTooltip("Hymie");
 
