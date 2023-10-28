@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.function.Predicate;
 
 public class HymieControlUi
 {
@@ -40,6 +41,8 @@ public class HymieControlUi
     private final MenuItem refreshMenuItem;
 
     private Path hymieAgentJarFile;
+
+    private Predicate<VirtualMachineDescriptor> vmFilter = vm -> true;
 
     public HymieControlUi()
     {
@@ -71,6 +74,11 @@ public class HymieControlUi
         updateProcesses(List.of());
     }
 
+    public void setVmFilter(Predicate<VirtualMachineDescriptor> vmFilter)
+    {
+        this.vmFilter = Objects.requireNonNull(vmFilter);
+    }
+
     private void refreshProcesses()
     {
         List<VirtualMachineDescriptor> vmList = VirtualMachine.list();
@@ -81,7 +89,8 @@ public class HymieControlUi
         for (VirtualMachineDescriptor vmd : vmList)
         {
             //Do not put the current process into the list
-            if (!ourProcessId.equals(vmd.id()))
+            //or anything that should be filtered out
+            if (!ourProcessId.equals(vmd.id()) && vmFilter.test(vmd))
             {
                 Properties systemProperties;
 
