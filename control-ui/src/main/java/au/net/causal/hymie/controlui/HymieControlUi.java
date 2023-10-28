@@ -43,6 +43,7 @@ public class HymieControlUi
     private Path hymieAgentJarFile;
 
     private Predicate<VirtualMachineDescriptor> vmFilter = vm -> true;
+    private Predicate<Process> processFilter = process -> true;
 
     public HymieControlUi()
     {
@@ -79,6 +80,11 @@ public class HymieControlUi
         this.vmFilter = Objects.requireNonNull(vmFilter);
     }
 
+    public void setProcessFilter(Predicate<Process> processFilter)
+    {
+        this.processFilter = processFilter;
+    }
+
     private void refreshProcesses()
     {
         List<VirtualMachineDescriptor> vmList = VirtualMachine.list();
@@ -112,7 +118,9 @@ public class HymieControlUi
                     systemProperties = new Properties();
                 }
 
-                processList.add(new Process(vmd, systemProperties));
+                Process process = new Process(vmd, systemProperties);
+                if (processFilter.test(process))
+                    processList.add(process);
             }
         }
 
@@ -253,7 +261,7 @@ public class HymieControlUi
         System.exit(0);
     }
 
-    private static class Process
+    public static class Process
     {
         private final VirtualMachineDescriptor vmDescriptor;
         private final Properties systemProperties;
