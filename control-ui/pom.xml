@@ -43,6 +43,16 @@
             <version>4.4</version>
         </dependency>
 
+        <!--
+        SystemTray pulls in older version, but this newer one fixes a delay issue on Linux:
+        https://github.com/dorkbox/SystemTray/issues/190
+        -->
+        <dependency>
+            <groupId>com.dorkbox</groupId>
+            <artifactId>OS</artifactId>
+            <version>1.11</version>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
