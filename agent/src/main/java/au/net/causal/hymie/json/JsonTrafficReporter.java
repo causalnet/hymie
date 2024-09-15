@@ -1,5 +1,6 @@
 package au.net.causal.hymie.json;
 
+import au.net.causal.hymie.ExceptionalSupplier;
 import au.net.causal.hymie.HttpExchangeParser;
 import au.net.causal.hymie.TrafficReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +8,7 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,12 +57,12 @@ public class JsonTrafficReporter implements TrafficReporter
         jsonRequest.setPath(exchange.getRequest().getPath());
         jsonRequest.setMethod(exchange.getRequest().getMethod());
         jsonRequest.setHeaders(toJsonHeaders(exchange.getRequest().getHeaders()));
-        jsonRequest.setBody(toJsonBody(exchange.getRequest().getEntity()));
+        jsonRequest.setBody(toJsonBody(exchange.getRequest().getEntity(), exchange.getRequestInputStream()));
 
         jsonResponse.setStatusCode(exchange.getResponse().getCode());
         jsonResponse.setReasonPhrase(exchange.getResponse().getReasonPhrase());
         jsonResponse.setHeaders(toJsonHeaders(exchange.getResponse().getHeaders()));
-        jsonResponse.setBody(toJsonBody(exchange.getResponse().getEntity()));
+        jsonResponse.setBody(toJsonBody(exchange.getResponse().getEntity(), exchange.getResponseInputStream()));
 
         return jsonExchange;
     }
@@ -77,12 +79,12 @@ public class JsonTrafficReporter implements TrafficReporter
         return headerMap;
     }
 
-    private byte[] toJsonBody(HttpEntity entity)
+    private byte[] toJsonBody(HttpEntity entity, ExceptionalSupplier<InputStream, IOException> entityContent)
     throws IOException
     {
         if (entity == null)
             return null;
 
-        return entity.getContent().readAllBytes();
+        return entityContent.get().readAllBytes();
     }
 }

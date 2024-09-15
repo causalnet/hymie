@@ -1,5 +1,8 @@
 package au.net.causal.hymie;
 
+import au.net.causal.hymie.filter.CompositeContentFilter;
+import au.net.causal.hymie.filter.ContentFilter;
+import au.net.causal.hymie.filter.ContentFilters;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -39,6 +42,8 @@ public class HttpExchangeParser
     private final ContentLengthStrategy contentLengthStrategy = new DefaultContentLengthStrategy();
     private final Http1Config http1Config = Http1Config.DEFAULT;
 
+    private final ContentFilter contentFilter = new CompositeContentFilter(ContentFilters.FILTERS);
+
     public Exchange parse(long connectionId, SocketAddress address, Instant fromTime, Instant toTime, byte[] rawRequest, byte[] rawResponse)
     throws IOException, HttpException
     {
@@ -48,22 +53,32 @@ public class HttpExchangeParser
         //Parse request
         SessionInputBufferImpl requestBuf = new SessionInputBufferImpl(http1Config.getBufferSize());
         ClassicHttpRequest request;
+        ExceptionalSupplier<InputStream, IOException> requestInputStream;
         try (InputStream is = new ByteArrayInputStream(rawRequest))
         {
             request = requestParser.parse(requestBuf, is);
             receiveRequestEntity(request, requestBuf, is);
+            if (request.getEntity() != null && request.getEntity().getContent() != null)
+                requestInputStream = () -> contentFilter.applyFilter(request.getEntity().getContent(), request);
+            else
+                requestInputStream = null;
         }
 
         //Parse response
         SessionInputBufferImpl responseBuf = new SessionInputBufferImpl(http1Config.getBufferSize());
         ClassicHttpResponse response;
+        ExceptionalSupplier<InputStream, IOException> responseInputStream;
         try (InputStream is = new ByteArrayInputStream(rawResponse))
         {
             response = responseParser.parse(responseBuf, is);
             receiveResponseEntity(response, responseBuf, is);
+            if (response.getEntity() != null && response.getEntity().getContent() != null)
+                responseInputStream = () -> contentFilter.applyFilter(response.getEntity().getContent(), response);
+            else
+                responseInputStream = null;
         }
 
-        return new Exchange(connectionId, address, fromTime, toTime, request, response);
+        return new Exchange(connectionId, address, fromTime, toTime, request, response, requestInputStream, responseInputStream);
     }
 
     private void receiveRequestEntity(final ClassicHttpRequest request, SessionInputBuffer inBuffer, InputStream is)
@@ -226,15 +241,18 @@ public class HttpExchangeParser
         private final Instant toTime;
         private final ClassicHttpRequest request;
         private final ClassicHttpResponse response;
+        private final ExceptionalSupplier<InputStream, IOException> requestInputStream;
+        private final ExceptionalSupplier<InputStream, IOException> responseInputStream;
 
-        public Exchange(long connectionId, SocketAddress address, Instant fromTime, Instant toTime, ClassicHttpRequest request, ClassicHttpResponse response)
-        {
+        public Exchange(long connectionId, SocketAddress address, Instant fromTime, Instant toTime, ClassicHttpRequest request, ClassicHttpResponse response, ExceptionalSupplier<InputStream, IOException> requestInputStream, ExceptionalSupplier<InputStream, IOException> responseInputStream)        {
             this.connectionId = connectionId;
             this.address = address;
             this.fromTime = fromTime;
             this.toTime = toTime;
             this.request = request;
             this.response = response;
+            this.requestInputStream = requestInputStream;
+            this.responseInputStream = responseInputStream;
         }
 
         public long getConnectionId()
@@ -265,6 +283,16 @@ public class HttpExchangeParser
         public ClassicHttpResponse getResponse()
         {
             return response;
+        }
+
+        public ExceptionalSupplier<InputStream, IOException> getRequestInputStream()
+        {
+            return requestInputStream;
+        }
+
+        public ExceptionalSupplier<InputStream, IOException> getResponseInputStream()
+        {
+            return responseInputStream;
         }
     }
 }

@@ -1,5 +1,6 @@
 package au.net.causal.hymie.ui;
 
+import au.net.causal.hymie.ExceptionalSupplier;
 import au.net.causal.hymie.HttpExchangeParser;
 import au.net.causal.hymie.formatter.MessageFormatterRegistry;
 import org.apache.hc.core5.http.ContentType;
@@ -28,7 +29,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -232,12 +232,12 @@ public class TrafficPane extends JPanel
 
         public String getRequestContent()
         {
-            return entityContent(exchange.getRequest().getEntity());
+            return entityContent(exchange.getRequest().getEntity(), exchange.getRequestInputStream());
         }
 
         public String getResponseContent()
         {
-            return entityContent(exchange.getResponse().getEntity());
+            return entityContent(exchange.getResponse().getEntity(), exchange.getResponseInputStream());
         }
 
         public String getRequestSyntaxStyle()
@@ -269,7 +269,7 @@ public class TrafficPane extends JPanel
             }
         }
 
-        private String entityContent(HttpEntity entity)
+        private String entityContent(HttpEntity entity, ExceptionalSupplier<InputStream, IOException> entityContent)
         {
             if (entity == null)
                 return "";
@@ -279,7 +279,7 @@ public class TrafficPane extends JPanel
                 {
                     ContentType contentType = ContentType.parseLenient(entity.getContentType());
 
-                    try (InputStream content = entity.getContent(); StringWriter w = new StringWriter())
+                    try (InputStream content = entityContent.get(); StringWriter w = new StringWriter())
                     {
                         messageFormatterRegistry.formatter(contentType).format(contentType, content, w);
                         return w.toString();

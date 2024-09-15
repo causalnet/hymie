@@ -37,7 +37,7 @@ public class PlainTrafficReporter implements TrafficReporter
             out.append('\n');
         }
         if (exchange.getRequest().getEntity() != null)
-            reportBody(ContentType.parseLenient(exchange.getRequest().getEntity().getContentType()), exchange.getRequest().getEntity().getContent(), out);
+            reportBody(ContentType.parseLenient(exchange.getRequest().getEntity().getContentType()), exchange.getRequestInputStream().get(), out);
 
         out.append("Response: ").append(exchange.getResponse().toString()).append('\n');
         for (Header header : exchange.getResponse().getHeaders())
@@ -46,7 +46,7 @@ public class PlainTrafficReporter implements TrafficReporter
             out.append('\n');
         }
         if (exchange.getResponse().getEntity() != null)
-            reportBody(ContentType.parseLenient(exchange.getResponse().getEntity().getContentType()), exchange.getResponse().getEntity().getContent(), out);
+            reportBody(ContentType.parseLenient(exchange.getResponse().getEntity().getContentType()), exchange.getResponseInputStream().get(), out);
 
         out.write('\n');
     }

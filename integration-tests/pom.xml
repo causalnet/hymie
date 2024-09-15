@@ -16,6 +16,7 @@
         <module>base</module>
         <module>spring</module>
         <module>socket</module>
+        <module>socket-compressed</module>
         <module>sslsocket</module>
     </modules>
 </project>

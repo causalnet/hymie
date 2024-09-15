@@ -9,5 +9,6 @@
 /integration-tests/target
 /integration-tests/spring/target
 /integration-tests/socket/target
+/integration-tests/socket-compressed/target
 /integration-tests/sslsocket/target
 /integration-tests/base/target
